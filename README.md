@@ -207,13 +207,13 @@ AI는 과거 데이터를 분석하여
 
 ---
 
-AI 기반 분석 과정은 다음과 같습니다.
+AI 기반 분석 데이터 링크
 
-1. 사용자 입력 대기 데이터 수집  
-2. 공공 혼잡도 및 군중 데이터 활용  
-3. 시간대 및 요일 패턴 분석  
-4. AI 모델을 통한 대기시간 예측  
-5. 사용자에게 예측 결과 제공  
+1. [실내외 군중 특성 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71368)
+2. [교차로 신호 체계, 보행자, 차량 이동 복합 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=522)
+3. [유동 인구 분석을 위한 CCTV 영상 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=489)
+4. [지능형 관제 서비스 CCTV 영상 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71850)
+5. [CCTV 기반 차량정보 및 교통정보 계측 데이터](https://aihub.or.kr/mypage/intrst/list.do?currMenu=156&topMenu=106)
 
 ---
 
