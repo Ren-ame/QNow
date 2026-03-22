@@ -1,3 +1,4 @@
+<!-- 2주차 발표 -->
 <details>
   <summary><strong>2주차 발표</strong></summary>
 
@@ -145,16 +146,7 @@ AI는 과거 데이터를 분석하여
 
 
 
-<!-- -->
-
-
-
-
-
-
-
-
-
+<!-- 3주차 발표 -->
 <details>
   <summary><strong>3주차 발표</strong></summary>
 
