@@ -294,3 +294,83 @@ AI 기반 분석 데이터 링크
 > 이 서비스는 사용자 참여와 AI 기반 분석을 통해  
 > 방문 전에 대기 상황을 확인하고 시간 낭비를 줄일 수 있도록 돕는 서비스입니다.
 </details>
+
+
+
+<!-- 4주차 발표 -->
+<details>
+  <summary><strong>4주차 발표</strong></summary>
+
+# 4주차 발표
+
+<details>
+  <summary><strong>🔥 QNow Flow Chart ① (대기 확인)</strong></summary>
+
+
+```mermaid
+flowchart TD
+    A([시작])
+    B[메인 화면 진입]
+    C[현재 위치 기반 장소 리스트 표시]
+    D[사용자: 장소 선택]
+    E[장소 상세 페이지 진입]
+    F[현재 대기시간 / 대기 인원 표시]
+    G[AI 예측 대기시간 표시]
+    H{방문 여부 결정}
+
+    I[방문]
+    J[서비스 종료]
+
+    K[다른 장소 탐색]
+    L[장소 리스트로 돌아감]
+
+    A --> B --> C --> D --> E --> F --> G --> H
+    H -->|YES| I --> J
+    H -->|NO| K --> L --> C
+```
+</details>
+<details>
+  <summary><strong>🔥 QNow Flow Chart ② (대기 정보 입력)</strong></summary>
+
+  ```mermaid
+flowchart TD
+    A([시작])
+    B[사용자: 장소 방문]
+    C[QNow 접속]
+    D[장소 검색 또는 선택]
+    E[장소 상세 페이지 진입]
+    F[대기 정보 입력 버튼 클릭]
+    G[대기시간 입력]
+    H[대기 인원 입력]
+    I[혼잡도 선택]
+    J[정보 제출]
+    K[포인트 지급]
+    L([종료])
+
+    A --> B --> C --> D --> E --> F --> G --> H --> I --> J --> K --> L
+```
+</details>
+<details>
+  <summary><strong>🔥 QNow Flow Chart ③ (AI 데이터 흐름)</strong></summary>
+  
+```mermaid
+flowchart TD
+    A["데이터 수집 - 사용자 입력 + 공공 데이터"]
+    B["데이터 정제"]
+    C["시간대 / 요일 패턴 분석"]
+    D["AI 모델 분석"]
+    E["대기시간 예측 생성"]
+    F["서비스 DB 저장"]
+    G["사용자 화면 제공"]
+
+    A --> B --> C --> D --> E --> F --> G
+```
+</details>
+<details>
+  <summary><strong> 서비스 화면 </strong></summary>
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/a1020e6a-3085-49f0-bdd2-3bad3e08cc38" />
+<img width="720" height="1467" alt="image" src="https://github.com/user-attachments/assets/af2b9d36-4643-44bc-870b-992488244bf2" />
+</details>
+
+
+</details>
