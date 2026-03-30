@@ -370,6 +370,8 @@ flowchart TD
   <summary><strong> 서비스 화면 </strong></summary>
 <img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/a1020e6a-3085-49f0-bdd2-3bad3e08cc38" />
 <img width="720" height="1467" alt="image" src="https://github.com/user-attachments/assets/af2b9d36-4643-44bc-870b-992488244bf2" />
+<img width="864" height="1538" alt="image" src="https://github.com/user-attachments/assets/8bcbbc20-270f-42dc-9b9b-0ea2f7899b06" />
+
 </details>
 
 
