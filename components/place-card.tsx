@@ -10,6 +10,8 @@ export interface Place {
   name: string
   category: string
   address: string
+  lat?: number
+  lng?: number
   distance: string
   waitTime: number
   waitingPeople: number

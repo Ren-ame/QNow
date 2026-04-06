@@ -29,6 +29,7 @@ interface FilterButtonsProps {
 
 const categoryOptions: FilterOption[] = [
   { id: "all", label: "전체" },
+  { id: "subway", label: "역" },
   { id: "cafe", label: "카페" },
   { id: "restaurant", label: "음식점" },
   { id: "fastfood", label: "패스트푸드" },

@@ -14,8 +14,20 @@ declare namespace kakao.maps {
     constructor(container: HTMLElement, options: MapOptions)
     setCenter(latlng: LatLng): void
     setLevel(level: number): void
+    panBy(x: number, y: number): void
     getLevel(): number
     getCenter(): LatLng
+    getProjection(): MapProjection
+  }
+
+  class Point {
+    constructor(x: number, y: number)
+    getX(): number
+    getY(): number
+  }
+
+  interface MapProjection {
+    coordsFromContainerPoint(point: Point): LatLng
   }
 
   class LatLng {
@@ -57,6 +69,8 @@ declare namespace kakao.maps {
 
   namespace event {
     function addListener(target: object, type: string, callback: () => void): void
+    function removeListener(target: object, type: string, callback: () => void): void
+    function preventMap(): void
   }
 
   function load(callback: () => void): void
@@ -66,8 +80,12 @@ interface MapViewProps {
   places: Place[]
   selectedPlace?: Place | null
   onMarkerClick?: (place: Place) => void
+  onMapBackgroundClick?: () => void
   center?: { lat: number; lng: number }
+  focusTargetAtGuide?: { lat: number; lng: number } | null
   onSearchArea?: (lat: number, lng: number) => void
+  onCenterChange?: (lat: number, lng: number) => void
+  onMapCenterChange?: (lat: number, lng: number) => void
 }
 
 const crowdColorMap = {
@@ -84,12 +102,52 @@ const crowdTextMap = {
   critical: "매우혼잡",
 }
 
-export function MapView({ places, selectedPlace, onMarkerClick, center, onSearchArea }: MapViewProps) {
+const centerGuideOffsetY = 200
+
+export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onSearchArea, onCenterChange, onMapCenterChange  }: MapViewProps) {
+  const isDeveloperMode = process.env.NODE_ENV !== "production"
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<kakao.maps.Map | null>(null)
   const overlaysRef = useRef<kakao.maps.CustomOverlay[]>([])
+  const centerGuideRef = useRef<HTMLButtonElement>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [isCenterGuideActive, setIsCenterGuideActive] = useState(false)
+  const centerGuideDragRef = useRef<{ x: number; y: number } | null>(null)
+
+  const getGuidedCenter = () => {
+    const map = mapInstanceRef.current
+    const mapElement = mapRef.current
+
+    if (!map || !mapElement) return null
+
+    const rect = mapElement.getBoundingClientRect()
+    const guidePoint = new window.kakao.maps.Point(rect.width / 2, rect.height / 2 - centerGuideOffsetY)
+
+    return map.getProjection().coordsFromContainerPoint(guidePoint)
+  }
+
+  const emitGuidedCenter = () => {
+    const guidedCenter = getGuidedCenter()
+
+    if (guidedCenter) {
+      onCenterChange?.(guidedCenter.getLat(), guidedCenter.getLng())
+    }
+  }
+
+  const emitActualCenter = () => {
+    const map = mapInstanceRef.current
+
+    if (!map) return
+
+    const actualCenter = map.getCenter()
+    onMapCenterChange?.(actualCenter.getLat(), actualCenter.getLng())
+  }
+
+  const emitCenters = () => {
+    emitActualCenter()
+    emitGuidedCenter()
+  }
 
   // 카카오맵 SDK 로드
   useEffect(() => {
@@ -158,6 +216,7 @@ export function MapView({ places, selectedPlace, onMarkerClick, center, onSearch
       // Cleanup if needed
     }
   }, [])
+  
 
   // 지도 초기화
   useEffect(() => {
@@ -169,7 +228,27 @@ export function MapView({ places, selectedPlace, onMarkerClick, center, onSearch
     }
 
     mapInstanceRef.current = new window.kakao.maps.Map(mapRef.current, options)
-  }, [isLoaded])
+    kakao.maps.event.addListener(mapInstanceRef.current, "dragend", () => {
+      emitCenters()
+    })
+    kakao.maps.event.addListener(mapInstanceRef.current, "idle", emitCenters)
+    emitCenters()
+  }, [isLoaded, onCenterChange, onMapCenterChange, onMapBackgroundClick])
+
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!isLoaded || !map || !onMapBackgroundClick) return
+
+    const handleMapClick = () => {
+      onMapBackgroundClick()
+    }
+
+    kakao.maps.event.addListener(map, "click", handleMapClick)
+
+    return () => {
+      kakao.maps.event.removeListener(map, "click", handleMapClick)
+    }
+  }, [isLoaded, onMapBackgroundClick])
 
   // 마커 및 오버레이 생성
   useEffect(() => {
@@ -236,9 +315,11 @@ export function MapView({ places, selectedPlace, onMarkerClick, center, onSearch
         </div>
       `
 
-      content.onclick = () => {
+      content.addEventListener("click", (event) => {
+        event.stopPropagation()
+        window.kakao.maps.event.preventMap()
         onMarkerClick?.(place)
-      }
+      })
 
       const overlay = new window.kakao.maps.CustomOverlay({
         position,
@@ -252,12 +333,33 @@ export function MapView({ places, selectedPlace, onMarkerClick, center, onSearch
     })
   }, [isLoaded, places, selectedPlace, onMarkerClick])
 
-useEffect(() => {
-  if (!mapInstanceRef.current || !center) return
-  mapInstanceRef.current.setCenter(
-    new window.kakao.maps.LatLng(center.lat, center.lng)
-  )
-}, [center])
+  useEffect(() => {
+    if (!isLoaded || !mapInstanceRef.current || !center) return
+
+    mapInstanceRef.current.setCenter(
+      new window.kakao.maps.LatLng(center.lat, center.lng)
+    )
+    emitCenters()
+  }, [center, isLoaded])
+
+  useEffect(() => {
+    if (!isLoaded || !mapInstanceRef.current || !mapRef.current || !focusTargetAtGuide) return
+
+    const map = mapInstanceRef.current
+    const mapElement = mapRef.current
+    const rect = mapElement.getBoundingClientRect()
+
+    // 목표 좌표를 먼저 중앙에 둔 뒤, 중앙 아래 offset 좌표를 새 중심으로 잡아
+    // 최종적으로 목표 좌표가 십자선(중앙 - offsetY)에 오도록 맞춘다.
+    map.setCenter(new window.kakao.maps.LatLng(focusTargetAtGuide.lat, focusTargetAtGuide.lng))
+
+    const adjustedCenter = map
+      .getProjection()
+      .coordsFromContainerPoint(new window.kakao.maps.Point(rect.width / 2, rect.height / 2 + centerGuideOffsetY))
+
+    map.setCenter(adjustedCenter)
+    emitCenters()
+  }, [focusTargetAtGuide, isLoaded])
 
   // 줌 컨트롤
   const handleZoomIn = () => {
@@ -272,6 +374,35 @@ useEffect(() => {
       const level = mapInstanceRef.current.getLevel()
       mapInstanceRef.current.setLevel(level + 1)
     }
+  }
+
+  const handleCenterGuidePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!mapInstanceRef.current) return
+
+    event.preventDefault()
+    centerGuideDragRef.current = { x: event.clientX, y: event.clientY }
+    setIsCenterGuideActive(true)
+    centerGuideRef.current?.setPointerCapture(event.pointerId)
+  }
+
+  const handleCenterGuidePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!mapInstanceRef.current || !centerGuideDragRef.current || !isCenterGuideActive) return
+
+    const deltaX = event.clientX - centerGuideDragRef.current.x
+    const deltaY = event.clientY - centerGuideDragRef.current.y
+
+    if (deltaX === 0 && deltaY === 0) return
+
+    mapInstanceRef.current.panBy(-deltaX, -deltaY)
+    centerGuideDragRef.current = { x: event.clientX, y: event.clientY }
+  }
+
+  const handleCenterGuidePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isCenterGuideActive) return
+
+    centerGuideDragRef.current = null
+    setIsCenterGuideActive(false)
+    centerGuideRef.current?.releasePointerCapture(event.pointerId)
   }
 
   // 현재 위치로 이동
@@ -319,8 +450,29 @@ useEffect(() => {
       {/* 카카오맵 컨테이너 */}
       <div ref={mapRef} className="w-full h-full" />
 
+      {/* 중앙 가이드 점 */}
+      {isDeveloperMode && (
+        <button
+          ref={centerGuideRef}
+          type="button"
+          aria-label="중심점 가이드"
+          title="중심점 가이드"
+          onPointerDown={handleCenterGuidePointerDown}
+          onPointerMove={handleCenterGuidePointerMove}
+          onPointerUp={handleCenterGuidePointerUp}
+          onPointerCancel={handleCenterGuidePointerUp}
+          className="absolute left-1/2 top-1/2 z-20 h-10 w-10 cursor-grab touch-none select-none transition-transform hover:scale-110 active:cursor-grabbing"
+          style={{ transform: `translate(-50%, calc(-50% - ${centerGuideOffsetY}px))` }}
+        >
+          <span className="absolute left-1/2 top-1/2 h-px w-8 -translate-x-1/2 -translate-y-1/2 bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.95)]" />
+          <span className="absolute left-1/2 top-1/2 h-8 w-px -translate-x-1/2 -translate-y-1/2 bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.95)]" />
+          <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-sky-500 shadow-[0_0_14px_rgba(14,165,233,1)]" />
+          <span className="absolute inset-0 rounded-full border border-sky-300/70 bg-sky-500/5 shadow-[0_0_0_10px_rgba(14,165,233,0.08)]" />
+        </button>
+      )}
+
       {/* 이 지역 재검색 버튼 */}
-      {onSearchArea && (
+      {/* {onSearchArea && (
         <button
           onClick={() => {
             if (mapInstanceRef.current) {
@@ -328,11 +480,11 @@ useEffect(() => {
               onSearchArea(center.getLat(), center.getLng())
             }
           }}
-          className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-card rounded-full shadow-md border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-card rounded-full shadow-md border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground"
         >
           이 지역 재검색
         </button>
-      )}
+      )} */}
 
       {/* 지도 컨트롤 버튼 */}
       <div className="absolute right-4 bottom-4 flex flex-col gap-2">

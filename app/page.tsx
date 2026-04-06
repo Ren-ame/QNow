@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Plus, Navigation } from "lucide-react"
-import { SearchBar } from "@/components/search-bar"
+import { SearchBar, type SearchSuggestion } from "@/components/search-bar"
 import { MapView } from "@/components/map-view"
 import { FilterButtons, type FilterState } from "@/components/filter-buttons"
 import { BottomSheet } from "@/components/bottom-sheet"
@@ -88,6 +88,9 @@ const samplePlaces: Place[] = [
 ]
 
 export default function WaitingNowPage() {
+  const DEFAULT_SEARCH_QUERY = "음식점"
+  const DIVERSE_CATEGORY_QUERIES = ["음식점", "카페", "병원", "은행", "약국", "편의점"]
+  const isDeveloperMode = process.env.NODE_ENV !== "production"
   const [places, setPlaces] = useState<Place[]>(samplePlaces)
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [filters, setFilters] = useState<FilterState>({
@@ -98,26 +101,77 @@ export default function WaitingNowPage() {
   const [isInputModalOpen, setIsInputModalOpen] = useState(false)
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
+  const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
+  const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
+  const [actualMapCenter, setActualMapCenter] = useState<{lat: number, lng: number} | null>(null)
+  const [guideFocusTarget, setGuideFocusTarget] = useState<{lat: number, lng: number} | null>(null)
+  const [activeSearchQuery, setActiveSearchQuery] = useState(DEFAULT_SEARCH_QUERY)
+  const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setUserLocation(loc)
-        fetchPlaces(loc, "음식점")
+        setMapViewportCenter(loc)
+        setMapCenter(loc)
+        fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
       },
       () => {
         const loc = { lat: 37.4979, lng: 127.0276 }
         setUserLocation(loc)
-        fetchPlaces(loc, "음식점")
+        setMapViewportCenter(loc)
+        setMapCenter(loc)
+        fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
       }
     )
   }, [])
 
+  const buildSearchSuggestions = (fetchedPlaces: Place[], query: string): SearchSuggestion[] => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return []
+
+    const filtered = fetchedPlaces.filter((place) => {
+      const name = place.name.toLowerCase()
+      const category = place.category.toLowerCase()
+      const address = place.address.toLowerCase()
+      return name.includes(normalized) || category.includes(normalized) || address.includes(normalized)
+    })
+
+    const source = filtered.length > 0 ? filtered : fetchedPlaces
+    const seen = new Set<string>()
+
+    return source
+      .filter((place) => {
+        if (seen.has(place.id)) return false
+        seen.add(place.id)
+        return true
+      })
+      .slice(0, 6)
+      .map((place) => ({
+        id: place.id,
+        title: place.name,
+        subtitle: `${place.category} · ${place.address}`,
+        lat: place.lat,
+        lng: place.lng,
+      }))
+  }
+
   const fetchPlaces = async (loc: {lat: number, lng: number}, query: string) => {
     const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${query}`)
-    const data = await res.json()
+    const data: Place[] = await res.json()
     setPlaces(data)
+    setSearchSuggestions(buildSearchSuggestions(data, query))
+    return data
+  }
+
+  const fetchPlacesByCategory = async (loc: {lat: number, lng: number}, categoryGroupCode: string, queryForSuggestion = "") => {
+    const res = await fetch(
+      `/api/places?lat=${loc.lat}&lng=${loc.lng}&categoryGroupCode=${categoryGroupCode}&query=${encodeURIComponent(queryForSuggestion)}`
+    )
+    const data: Place[] = await res.json()
+    setPlaces(data)
+    setSearchSuggestions(buildSearchSuggestions(data, queryForSuggestion || "역"))
     return data
   }
 
@@ -125,22 +179,122 @@ export default function WaitingNowPage() {
     const results = await Promise.all(
       queries.map(q => fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${q}`).then(r => r.json()))
     )
-    const merged = results.flat()
-  // 중복 제거
-    const unique = merged.filter((place, index, self) => 
-    index === self.findIndex((p) => p.id === place.id)
+    const merged: Place[] = results.flat()
+    // 중복 제거
+    const unique = merged.filter((place, index, self) =>
+      index === self.findIndex((p) => p.id === place.id)
     )
     setPlaces(unique)
     return unique
   }
 
-  const handleSearch = (query: string) => {
-  if (!query.trim()) {
-    if (userLocation) fetchPlaces(userLocation, "음식점")
-    return
+  const fetchDiversePlaces = async (loc: {lat: number, lng: number}, query: string) => {
+    const mergedQueries = Array.from(new Set([query, ...DIVERSE_CATEGORY_QUERIES]))
+    const data = await fetchMultiplePlaces(loc, mergedQueries)
+    setSearchSuggestions(buildSearchSuggestions(data, query))
+    return data
   }
-  if (userLocation) fetchPlaces(userLocation, query)
-}
+
+  const executeSearch = (loc: {lat: number, lng: number}, rawQuery: string) => {
+    const normalizedQuery = rawQuery.trim() || DEFAULT_SEARCH_QUERY
+    setActiveSearchQuery(normalizedQuery)
+
+    if (!rawQuery.trim()) {
+      return fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+    }
+
+    return fetchDiversePlaces(loc, normalizedQuery)
+  }
+
+  const keepSelectedPlaceFirst = (list: Place[]) => {
+    if (!selectedPlace) return list
+
+    return [...list].sort((a, b) => {
+      if (a.id === selectedPlace.id) return -1
+      if (b.id === selectedPlace.id) return 1
+      return 0
+    })
+  }
+
+  const resetPinHighlight = () => {
+    setSelectedPlace(null)
+  }
+
+  const getActiveLocation = () => mapCenter ?? userLocation
+
+  const handleDebugCenter = () => {
+    if (!actualMapCenter || !mapCenter) {
+      toast.info("현재 중심 좌표를 아직 가져오지 못했습니다.")
+      return
+    }
+
+    console.log("[WaitingNowPage] Actual map center:", actualMapCenter)
+    console.log("[WaitingNowPage] Crosshair center:", mapCenter)
+
+    toast.custom(() => (
+      <div className="rounded-lg border border-border bg-background px-4 py-3 shadow-lg">
+        <div className="text-sm font-semibold text-foreground">중심 좌표 비교</div>
+        <div className="mt-2 grid gap-3 text-sm">
+          <div>
+            <div className="text-muted-foreground">현재 중심 좌표</div>
+            <div className="font-medium text-foreground">
+              {actualMapCenter.lat.toFixed(6)}, {actualMapCenter.lng.toFixed(6)}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">십자선 좌표</div>
+            <div className="font-medium text-foreground">
+              {mapCenter.lat.toFixed(6)}, {mapCenter.lng.toFixed(6)}
+            </div>
+          </div>
+        </div>
+      </div>
+    ))
+  }
+
+  const handleReSearch = () => {
+    if (!mapCenter) {
+      toast.info("십자선 중심 좌표를 아직 가져오지 못했습니다.")
+      return
+    }
+
+    resetPinHighlight()
+
+    setFilters({
+      category: null,
+      waitTime: null,
+      crowd: null,
+    })
+
+    executeSearch(mapCenter, activeSearchQuery)
+  }
+
+  const handleSearch = (query: string) => {
+    const location = getActiveLocation()
+
+    if (!location) return
+    resetPinHighlight()
+    executeSearch(location, query)
+  }
+
+  const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
+    const normalizedQuery = suggestion.title.trim() || DEFAULT_SEARCH_QUERY
+    setActiveSearchQuery(normalizedQuery)
+
+    if (suggestion.lat == null || suggestion.lng == null) {
+      handleSearch(normalizedQuery)
+      return
+    }
+
+    const target = { lat: suggestion.lat, lng: suggestion.lng }
+    setGuideFocusTarget(target)
+    setMapCenter(target)
+
+    const matchedPlace = places.find((place) => place.id === suggestion.id)
+    if (matchedPlace) {
+      setSelectedPlace(matchedPlace)
+    }
+  }
 
   const handlePlaceSelect = (place: Place) => {
     setSelectedPlace(place)
@@ -150,6 +304,48 @@ export default function WaitingNowPage() {
 
   const handleMarkerClick = (place: Place) => {
     setSelectedPlace(place)
+
+    // 업종 필터가 선택된 상태에서만, 클릭한 핀 기준으로 주변 목록을 가까운 순 정렬한다.
+    if (!filters.category) return
+    if (place.lat == null || place.lng == null) return
+
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const distanceInMeters = (
+      lat1: number,
+      lng1: number,
+      lat2: number,
+      lng2: number
+    ) => {
+      const R = 6371000
+      const dLat = toRad(lat2 - lat1)
+      const dLng = toRad(lng2 - lng1)
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      return R * c
+    }
+
+    setPlaces((prev) => {
+      const sorted = [...prev].sort((a, b) => {
+        if (a.id === place.id) return -1
+        if (b.id === place.id) return 1
+
+        const aHasCoord = a.lat != null && a.lng != null
+        const bHasCoord = b.lat != null && b.lng != null
+
+        if (!aHasCoord && !bHasCoord) return 0
+        if (!aHasCoord) return 1
+        if (!bHasCoord) return -1
+
+        const aDist = distanceInMeters(place.lat!, place.lng!, a.lat!, a.lng!)
+        const bDist = distanceInMeters(place.lat!, place.lng!, b.lat!, b.lng!)
+        return aDist - bDist
+      })
+
+      return keepSelectedPlaceFirst(sorted)
+    })
   }
 
   const handleFavorite = (place: Place) => {
@@ -194,6 +390,7 @@ export default function WaitingNowPage() {
   }
 
   const categoryMap: Record<string, string | string[]> = {
+    subway: "SW8",
     cafe: "카페",
     restaurant: "음식점",
     fastfood: "패스트푸드",
@@ -208,16 +405,25 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
   const newFilters = { ...filters, [filterType]: value }
   setFilters(newFilters)
 
-  const query = newFilters.category && newFilters.category !== "all"
-    ? categoryMap[newFilters.category] || "음식점"
-    : "음식점"
+  if (filterType === "category") {
+    resetPinHighlight()
+  }
 
-  if (userLocation) {
-    const fetcher = Array.isArray(query)
-      ? fetchMultiplePlaces(userLocation, query)
-      : fetchPlaces(userLocation, query)
+  const location = getActiveLocation()
 
-    fetcher.then((fetchedPlaces: any[]) => {
+  if (location) {
+    const isAllCategory = !newFilters.category || newFilters.category === "all"
+    const categoryQuery = newFilters.category ? categoryMap[newFilters.category] : DEFAULT_SEARCH_QUERY
+
+    const fetcher: Promise<Place[]> = isAllCategory
+      ? fetchDiversePlaces(location, activeSearchQuery || DEFAULT_SEARCH_QUERY)
+      : categoryQuery === "SW8"
+        ? fetchPlacesByCategory(location, "SW8", activeSearchQuery)
+      : Array.isArray(categoryQuery)
+        ? fetchMultiplePlaces(location, categoryQuery)
+        : fetchPlaces(location, categoryQuery || DEFAULT_SEARCH_QUERY)
+
+    fetcher.then((fetchedPlaces: Place[]) => {
       let result = [...fetchedPlaces]
 
       if (newFilters.waitTime) {
@@ -241,7 +447,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         }
       }
 
-      setPlaces(result)
+      setPlaces(keepSelectedPlaceFirst(result))
     })
   }
 }
@@ -252,7 +458,12 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
 
       {/* 검색바 */}
       <div className="absolute top-0 left-0 right-0 z-20 p-4">
-        <SearchBar onSearch={handleSearch} />
+        <SearchBar
+          onSearch={handleSearch}
+          onDebouncedSearch={handleSearch}
+          onSuggestionSelect={handleSuggestionSelect}
+          suggestions={searchSuggestions}
+        />
       </div>
 
       {/* 필터 버튼 */}
@@ -269,7 +480,12 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           places={places}
           selectedPlace={selectedPlace}
           onMarkerClick={handleMarkerClick}
-          center={userLocation ?? undefined}
+          onMapBackgroundClick={() => setSelectedPlace(null)}
+          center={mapViewportCenter ?? userLocation ?? undefined}
+          focusTargetAtGuide={guideFocusTarget}
+          onSearchArea={(lat, lng) => fetchPlaces({ lat, lng }, "음식점")}
+          onCenterChange={(lat, lng) => setMapCenter({ lat, lng })}
+          onMapCenterChange={(lat, lng) => setActualMapCenter({ lat, lng })}
         />
       </div>
 
@@ -278,15 +494,38 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         variant="secondary"
         size="icon"
         className="absolute left-4 bottom-[48%] z-10 rounded-full shadow-lg bg-card hover:bg-muted"
-        onClick={() => toast.info("현재 위치로 이동합니다")}
+        onClick={() => {
+          if (!userLocation) {
+            toast.info("현재 위치를 아직 가져오지 못했습니다.")
+            return
+          }
+
+          const currentLocation = { ...userLocation }
+
+          resetPinHighlight()
+          setMapViewportCenter(currentLocation)
+          executeSearch(currentLocation, activeSearchQuery)
+          toast.info("현재 위치로 이동합니다")
+        }}
       >
         <Navigation className="w-5 h-5 text-primary" />
       </Button>
 
+      {/* 중심점 디버그 버튼 */}
+      {isDeveloperMode && (
+        <Button
+          variant="secondary"
+          className="absolute right-4 bottom-[58%] z-10 rounded-full shadow-lg bg-card hover:bg-muted"
+          onClick={handleDebugCenter}
+        >
+          중심점 확인
+        </Button>
+      )}
+
       {/* 이 지역 재검색 버튼 */}
-      {userLocation && (
+      {mapCenter && (
       <Button
-        onClick={() => fetchPlaces(userLocation, "음식점")}
+        onClick={handleReSearch}
         className="absolute bottom-[48%] left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-card rounded-full shadow-md border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground"
       >
         이 지역 재검색
