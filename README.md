@@ -374,6 +374,7 @@ flowchart TD
 <img width="720" height="1467" alt="image" src="https://github.com/user-attachments/assets/8bcbbc20-270f-42dc-9b9b-0ea2f7899b06" />
 
 </details>
+</details>
 
 <details>
   <summary><strong>개발 기록 (접기/펼치기)</strong></summary>
@@ -404,8 +405,5 @@ flowchart TD
 - 서비스의 핵심 목적을 사용자 참여 기반 대기 정보 공유로 정리함.
 - 모바일 웹 기반으로 사용 시나리오를 잡고, 대기시간/대기 인원 입력 흐름을 설명함.
 - AI 예측, 허위 정보 탐지, 혼잡도 예측 같은 확장 방향을 정리함.
-
-</details>
-
 
 </details>
