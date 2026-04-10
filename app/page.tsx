@@ -115,14 +115,14 @@ export default function WaitingNowPage() {
         setUserLocation(loc)
         setMapViewportCenter(loc)
         setMapCenter(loc)
-        fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+        fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
       },
       () => {
         const loc = { lat: 37.4979, lng: 127.0276 }
         setUserLocation(loc)
         setMapViewportCenter(loc)
         setMapCenter(loc)
-        fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+        fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
       }
     )
   }, [])
@@ -200,7 +200,7 @@ export default function WaitingNowPage() {
     setActiveSearchQuery(normalizedQuery)
 
     if (!rawQuery.trim()) {
-      return fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+      return fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
     }
 
     return fetchDiversePlaces(loc, normalizedQuery)
@@ -483,7 +483,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           onMapBackgroundClick={() => setSelectedPlace(null)}
           center={mapViewportCenter ?? userLocation ?? undefined}
           focusTargetAtGuide={guideFocusTarget}
-          onSearchArea={(lat, lng) => fetchPlaces({ lat, lng }, "음식점")}
+          onSearchArea={(lat, lng) => executeSearch({ lat, lng }, activeSearchQuery)}
           onCenterChange={(lat, lng) => setMapCenter({ lat, lng })}
           onMapCenterChange={(lat, lng) => setActualMapCenter({ lat, lng })}
         />
