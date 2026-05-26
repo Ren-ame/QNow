@@ -86,6 +86,7 @@ interface MapViewProps {
   onSearchArea?: (lat: number, lng: number) => void
   onCenterChange?: (lat: number, lng: number) => void
   onMapCenterChange?: (lat: number, lng: number) => void
+  resetZoomSignal?: number
 }
 
 const crowdColorMap = {
@@ -104,7 +105,7 @@ const crowdTextMap = {
 
 const centerGuideOffsetY = 200
 
-export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onSearchArea, onCenterChange, onMapCenterChange  }: MapViewProps) {
+export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onSearchArea, onCenterChange, onMapCenterChange, resetZoomSignal }: MapViewProps) {
   const isDeveloperMode = process.env.NODE_ENV !== "production"
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<kakao.maps.Map | null>(null)
@@ -360,6 +361,11 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
     map.setCenter(adjustedCenter)
     emitCenters()
   }, [focusTargetAtGuide, isLoaded])
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !resetZoomSignal) return
+    mapInstanceRef.current.setLevel(4)
+  }, [resetZoomSignal])
 
   // 줌 컨트롤
   const handleZoomIn = () => {

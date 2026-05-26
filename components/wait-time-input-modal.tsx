@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { Place } from "./place-card"
+import { supabase } from "@/lib/supabase"
 
 interface WaitTimeInputModalProps {
   place: Place | null
@@ -33,7 +34,27 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
   const [waitingPeople, setWaitingPeople] = useState(5)
   const [selectedCrowdLevel, setSelectedCrowdLevel] = useState("medium")
 
-  const handleSubmit = () => {
+  
+  /* Legacy code - 밑의 코드로 대체됨 (2024-06-20)
+   const handleSubmit = () => {
+    onSubmit?.({
+      waitTime,
+      waitingPeople,
+      crowdLevel: selectedCrowdLevel,
+    })
+    onClose()
+  } */
+
+  const handleSubmit = async () => {
+    if (place) {
+      await supabase.from("wait_times").insert({
+        place_id: place.id,
+        place_name: place.name,
+        wait_time: waitTime,
+        waiting_people: waitingPeople,
+        crowd_level: selectedCrowdLevel,
+      })
+    }
     onSubmit?.({
       waitTime,
       waitingPeople,

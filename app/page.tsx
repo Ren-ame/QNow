@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Plus, Navigation } from "lucide-react"
 import { SearchBar, type SearchSuggestion } from "@/components/search-bar"
 import { MapView } from "@/components/map-view"
@@ -11,8 +11,9 @@ import { WaitTimeInputModal } from "@/components/wait-time-input-modal"
 import { Button } from "@/components/ui/button"
 import { Toaster, toast } from "sonner"
 
+/* LEGACY CODE - 밑의 코드로 대체됨 (2024-06-20)
 // 샘플 데이터
-const samplePlaces: Place[] = [
+ const samplePlaces: Place[] = [
   {
     id: "1",
     name: "스타벅스 강남역점",
@@ -85,13 +86,13 @@ const samplePlaces: Place[] = [
     lastUpdated: "1분 전",
     isFavorite: false,
   },
-]
+] */
 
 export default function WaitingNowPage() {
   const DEFAULT_SEARCH_QUERY = "음식점"
   const DIVERSE_CATEGORY_QUERIES = ["음식점", "카페", "병원", "은행", "약국", "편의점"]
   const isDeveloperMode = process.env.NODE_ENV !== "production"
-  const [places, setPlaces] = useState<Place[]>(samplePlaces)
+  const [places, setPlaces] = useState<Place[]>([])
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [filters, setFilters] = useState<FilterState>({
     category: null,
@@ -107,20 +108,26 @@ export default function WaitingNowPage() {
   const [guideFocusTarget, setGuideFocusTarget] = useState<{lat: number, lng: number} | null>(null)
   const [activeSearchQuery, setActiveSearchQuery] = useState(DEFAULT_SEARCH_QUERY)
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
+  const [resetZoomSignal, setResetZoomSignal] = useState(0)
+  // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
+  const searchIdRef = useRef(0)
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setUserLocation(loc)
-        setMapViewportCenter(loc)
+        /* 2026-05-26: setMapViewportCenter → setGuideFocusTarget으로 변경
+         * 기존: 내 위치가 지도 수학적 중심에 배치 (십자선과 불일치)
+         * 변경: 현재위치 버튼과 동일하게 내 위치가 십자선에 오도록 통일 */
+        setGuideFocusTarget(loc)
         setMapCenter(loc)
         fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
       },
       () => {
         const loc = { lat: 37.4979, lng: 127.0276 }
         setUserLocation(loc)
-        setMapViewportCenter(loc)
+        setGuideFocusTarget(loc)
         setMapCenter(loc)
         fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
       }
@@ -157,6 +164,42 @@ export default function WaitingNowPage() {
       }))
   }
 
+  /* 2026-05-26: 2단계 로딩을 위한 헬퍼
+   * Kakao 결과를 먼저 보여준 뒤 Supabase 대기 정보를 비동기로 병합
+   * searchId가 다르면 이미 새 검색이 시작된 것이므로 업데이트 무시 */
+  const formatLastUpdated = (createdAt: string) => {
+    const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000 / 60)
+    if (diff < 1) return "방금 전"
+    if (diff < 60) return `${diff}분 전`
+    const hours = Math.floor(diff / 60)
+    if (hours < 24) return `${hours}시간 전`
+    return `${Math.floor(hours / 24)}일 전`
+  }
+
+  const enrichPlacesAsync = async (places: Place[], searchId: number) => {
+    if (places.length === 0) return
+    const ids = places.map((p) => p.id).join(",")
+    const waitRes = await fetch(`/api/wait-times?ids=${ids}`)
+    const waitTimes: any[] = await waitRes.json()
+
+    if (searchIdRef.current !== searchId) return // 구 검색 결과 무시
+
+    const waitTimeMap = new Map(waitTimes.map((w) => [w.place_id, w]))
+    setPlaces((prev) =>
+      prev.map((place) => {
+        const latest = waitTimeMap.get(place.id)
+        if (!latest) return place
+        return {
+          ...place,
+          waitTime: latest.wait_time,
+          waitingPeople: latest.waiting_people,
+          crowdLevel: latest.crowd_level as Place["crowdLevel"],
+          lastUpdated: formatLastUpdated(latest.created_at),
+        }
+      })
+    )
+  }
+
   const fetchPlaces = async (loc: {lat: number, lng: number}, query: string) => {
     const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${query}`)
     const data: Place[] = await res.json()
@@ -175,17 +218,20 @@ export default function WaitingNowPage() {
     return data
   }
 
+  /* 2026-05-26: 성능 개선 - 클라이언트-서버 왕복 N→1 + 2단계 로딩 적용
+   * Phase 1: skipEnrich=true로 Kakao 결과 즉시 표시 (대기 정보 없음)
+   * Phase 2: /api/wait-times로 Supabase 1번 조회 후 대기 정보 비동기 병합 */
   const fetchMultiplePlaces = async (loc: {lat: number, lng: number}, queries: string[]) => {
-    const results = await Promise.all(
-      queries.map(q => fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${q}`).then(r => r.json()))
-    )
-    const merged: Place[] = results.flat()
-    // 중복 제거
-    const unique = merged.filter((place, index, self) =>
-      index === self.findIndex((p) => p.id === place.id)
-    )
-    setPlaces(unique)
-    return unique
+    const searchId = ++searchIdRef.current
+    const queriesParam = encodeURIComponent(queries.join(","))
+    const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&queries=${queriesParam}&skipEnrich=true`)
+    const data: Place[] = await res.json()
+
+    if (searchIdRef.current !== searchId) return data
+    setPlaces(data) // Phase 1: 즉시 표시
+
+    enrichPlacesAsync(data, searchId) // Phase 2: 대기 정보 비동기 병합 (non-blocking)
+    return data
   }
 
   const fetchDiversePlaces = async (loc: {lat: number, lng: number}, query: string) => {
@@ -359,28 +405,49 @@ export default function WaitingNowPage() {
     )
   }
 
-  const handleWaitTimeSubmit = (data: {
+  /* 2026-05-26: Supabase 저장 추가
+   * 기존: React 상태만 업데이트 → 새로고침/재검색 시 데이터 소실
+   * 변경: /api/wait-times POST로 Supabase에 저장 후 상태 업데이트 */
+  const handleWaitTimeSubmit = async (data: {
     waitTime: number
     waitingPeople: number
     crowdLevel: string
   }) => {
     if (!editingPlace) return
 
-    setPlaces((prev) =>
-      prev.map((p) =>
-        p.id === editingPlace.id
-          ? {
-              ...p,
-              waitTime: data.waitTime,
-              waitingPeople: data.waitingPeople,
-              crowdLevel: data.crowdLevel as Place["crowdLevel"],
-              lastUpdated: "방금 전",
-            }
-          : p
+    try {
+      const res = await fetch("/api/wait-times", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          place_id: editingPlace.id,
+          wait_time: data.waitTime,
+          waiting_people: data.waitingPeople,
+          crowd_level: data.crowdLevel,
+        }),
+      })
+
+      if (!res.ok) throw new Error("저장 실패")
+
+      setPlaces((prev) =>
+        prev.map((p) =>
+          p.id === editingPlace.id
+            ? {
+                ...p,
+                waitTime: data.waitTime,
+                waitingPeople: data.waitingPeople,
+                crowdLevel: data.crowdLevel as Place["crowdLevel"],
+                lastUpdated: "방금 전",
+              }
+            : p
+        )
       )
-    )
-    toast.success("대기 정보가 업데이트되었습니다!")
-    setEditingPlace(null)
+      toast.success("대기 정보가 등록되었습니다!")
+    } catch {
+      toast.error("저장 중 오류가 발생했습니다. 다시 시도해주세요.")
+    } finally {
+      setEditingPlace(null)
+    }
   }
 
   const handleAddNewPlace = () => {
@@ -486,6 +553,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           onSearchArea={(lat, lng) => executeSearch({ lat, lng }, activeSearchQuery)}
           onCenterChange={(lat, lng) => setMapCenter({ lat, lng })}
           onMapCenterChange={(lat, lng) => setActualMapCenter({ lat, lng })}
+          resetZoomSignal={resetZoomSignal}
         />
       </div>
 
@@ -503,7 +571,11 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           const currentLocation = { ...userLocation }
 
           resetPinHighlight()
+          /* LEGACY CODE - 밑의 코드로 대체됨 (2024-06-20)
           setMapViewportCenter(currentLocation)
+           */
+          setGuideFocusTarget(currentLocation)
+          setResetZoomSignal(prev => prev + 1)
           executeSearch(currentLocation, activeSearchQuery)
           toast.info("현재 위치로 이동합니다")
         }}

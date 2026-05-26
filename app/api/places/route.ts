@@ -1,4 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+
+// 서버 전용 client: persistSession/autoRefreshToken false로 브라우저 auth 충돌 방지
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
+)
 
 const KAKAO_LOCAL_BASE_URL = "https://dapi.kakao.com/v2/local"
 
@@ -78,6 +91,39 @@ const rankDocuments = (docs: any[], query: string) => {
   })
 }
 
+/* 2026-05-26: lastUpdated 포맷 함수 분리 - enrichWithWaitTimes 재사용을 위해 */
+const formatLastUpdated = (createdAt: string) => {
+  const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000 / 60)
+  if (diff < 1) return "방금 전"
+  if (diff < 60) return `${diff}분 전`
+  const hours = Math.floor(diff / 60)
+  if (hours < 24) return `${hours}시간 전`
+  return `${Math.floor(hours / 24)}일 전`
+}
+
+/* 2026-05-26: Supabase 대기 정보 병합 함수 분리 - 단일 호출로 재사용 */
+const enrichWithWaitTimes = async (places: ReturnType<typeof mapToPlace>[]) => {
+  if (places.length === 0) return places
+  const placeIds = places.map((p) => p.id)
+  const { data: waitTimes } = await supabase
+    .from("wait_times")
+    .select("*")
+    .in("place_id", placeIds)
+    .order("created_at", { ascending: false })
+
+  return places.map((place) => {
+    const latest = waitTimes?.find((w) => w.place_id === place.id)
+    if (!latest) return place
+    return {
+      ...place,
+      waitTime: latest.wait_time,
+      waitingPeople: latest.waiting_people,
+      crowdLevel: latest.crowd_level,
+      lastUpdated: formatLastUpdated(latest.created_at),
+    }
+  })
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lat = searchParams.get("lat")
@@ -93,6 +139,32 @@ export async function GET(req: NextRequest) {
     return res.json()
   }
 
+  /* 2026-05-26: 다중 쿼리 서버 병렬 처리 추가
+   * 기존: 클라이언트에서 쿼리 N개 × 개별 fetch → 서버 왕복 N번 + Supabase N번
+   * 변경: queries 파라미터로 한 번에 전달 → 서버에서 Kakao N개 병렬 + Supabase 1번
+   * skipEnrich=true 시 Kakao 결과만 즉시 반환 (2단계 로딩 Phase 1용) */
+  const queriesParam = searchParams.get("queries")
+  const skipEnrich = searchParams.get("skipEnrich") === "true"
+  if (queriesParam && lat && lng) {
+    const queries = queriesParam.split(",").filter(Boolean)
+
+    const allDocsArrays = await Promise.all(
+      queries.map((q) => {
+        const url = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(q)}&x=${lng}&y=${lat}&radius=5000&size=15`
+        return requestWithAuth(url).then((data: any) => data.documents ?? [])
+      })
+    )
+
+    // 다중 카테고리 검색은 관련도 랭킹 대신 거리순 정렬
+    const merged = uniqueById(allDocsArrays.flat()).sort((a: any, b: any) =>
+      Number(a.distance || Number.MAX_SAFE_INTEGER) - Number(b.distance || Number.MAX_SAFE_INTEGER)
+    )
+    const places = merged.map(mapToPlace)
+    if (skipEnrich) return NextResponse.json(places)
+    const enriched = await enrichWithWaitTimes(places)
+    return NextResponse.json(enriched)
+  }
+
   // 카테고리 그룹 코드가 전달되면 키워드가 아닌 카테고리 전용 조회를 수행한다.
   if (categoryGroupCode && lat && lng) {
     const categoryUrl = `${KAKAO_LOCAL_BASE_URL}/search/category.json?category_group_code=${encodeURIComponent(categoryGroupCode)}&x=${lng}&y=${lat}&radius=5000&size=15`
@@ -100,7 +172,9 @@ export async function GET(req: NextRequest) {
     const categoryDocs: any[] = categoryData.documents ?? []
 
     const rankedCategoryDocs = rankDocuments(uniqueById(categoryDocs), query)
-    return NextResponse.json(rankedCategoryDocs.map(mapToPlace))
+    const places = rankedCategoryDocs.map(mapToPlace)
+    const enriched = await enrichWithWaitTimes(places)
+    return NextResponse.json(enriched)
   }
 
   const isSubwayQuery = /역|지하철|subway/i.test(query)
@@ -131,6 +205,6 @@ export async function GET(req: NextRequest) {
 
   const rankedDocs = rankDocuments(uniqueById(docs), query)
   const places = rankedDocs.map(mapToPlace)
-
-  return NextResponse.json(places)
+  const enriched = await enrichWithWaitTimes(places)
+  return NextResponse.json(enriched)
 }
