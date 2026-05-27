@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { Place } from "./place-card"
-import { supabase } from "@/lib/supabase"
 
 interface WaitTimeInputModalProps {
   place: Place | null
@@ -45,16 +44,7 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
     onClose()
   } */
 
-  const handleSubmit = async () => {
-    if (place) {
-      await supabase.from("wait_times").insert({
-        place_id: place.id,
-        place_name: place.name,
-        wait_time: waitTime,
-        waiting_people: waitingPeople,
-        crowd_level: selectedCrowdLevel,
-      })
-    }
+  const handleSubmit = () => {
     onSubmit?.({
       waitTime,
       waitingPeople,

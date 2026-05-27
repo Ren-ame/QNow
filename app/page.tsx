@@ -8,6 +8,7 @@ import { FilterButtons, type FilterState } from "@/components/filter-buttons"
 import { BottomSheet } from "@/components/bottom-sheet"
 import { PlaceCard, type Place } from "@/components/place-card"
 import { WaitTimeInputModal } from "@/components/wait-time-input-modal"
+import { WaitTimeHistoryModal } from "@/components/wait-time-history-modal"
 import { Button } from "@/components/ui/button"
 import { Toaster, toast } from "sonner"
 
@@ -101,6 +102,8 @@ export default function WaitingNowPage() {
   })
   const [isInputModalOpen, setIsInputModalOpen] = useState(false)
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+  const [historyPlace, setHistoryPlace] = useState<Place | null>(null)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
   const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
@@ -184,7 +187,11 @@ export default function WaitingNowPage() {
 
     if (searchIdRef.current !== searchId) return // 구 검색 결과 무시
 
-    const waitTimeMap = new Map(waitTimes.map((w) => [w.place_id, w]))
+    // waitTimes는 created_at DESC(최신순)이므로 먼저 나온 항목(최신)만 유지
+    const waitTimeMap = new Map<string, any>()
+    for (const w of waitTimes) {
+      if (!waitTimeMap.has(w.place_id)) waitTimeMap.set(w.place_id, w)
+    }
     setPlaces((prev) =>
       prev.map((place) => {
         const latest = waitTimeMap.get(place.id)
@@ -421,6 +428,7 @@ export default function WaitingNowPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           place_id: editingPlace.id,
+          place_name: editingPlace.name,
           wait_time: data.waitTime,
           waiting_people: data.waitingPeople,
           crowd_level: data.crowdLevel,
@@ -448,6 +456,11 @@ export default function WaitingNowPage() {
     } finally {
       setEditingPlace(null)
     }
+  }
+
+  const handleShowHistory = (place: Place) => {
+    setHistoryPlace(place)
+    setIsHistoryModalOpen(true)
   }
 
   const handleAddNewPlace = () => {
@@ -641,6 +654,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                 place={place}
                 onSelect={handlePlaceSelect}
                 onFavorite={handleFavorite}
+                onHistory={handleShowHistory}
               />
             ))
           )}
@@ -656,6 +670,16 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           setEditingPlace(null)
         }}
         onSubmit={handleWaitTimeSubmit}
+      />
+
+      {/* 시간대별 히스토리 모달 */}
+      <WaitTimeHistoryModal
+        place={historyPlace}
+        isOpen={isHistoryModalOpen}
+        onClose={() => {
+          setIsHistoryModalOpen(false)
+          setHistoryPlace(null)
+        }}
       />
     </main>
   )
