@@ -9,6 +9,7 @@ import { BottomSheet } from "@/components/bottom-sheet"
 import { PlaceCard, type Place } from "@/components/place-card"
 import { WaitTimeInputModal } from "@/components/wait-time-input-modal"
 import { WaitTimeHistoryModal } from "@/components/wait-time-history-modal"
+import { MenuSheet } from "@/components/menu-sheet"
 import { Button } from "@/components/ui/button"
 import { Toaster, toast } from "sonner"
 
@@ -104,6 +105,7 @@ export default function WaitingNowPage() {
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
   const [historyPlace, setHistoryPlace] = useState<Place | null>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
   const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
@@ -543,6 +545,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           onDebouncedSearch={handleSearch}
           onSuggestionSelect={handleSuggestionSelect}
           suggestions={searchSuggestions}
+          onMenuClick={() => setIsMenuOpen(true)}
         />
       </div>
 
@@ -670,6 +673,20 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           setEditingPlace(null)
         }}
         onSubmit={handleWaitTimeSubmit}
+      />
+
+      {/* 햄버거 메뉴 */}
+      <MenuSheet
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        favoritePlaces={places.filter((p) => p.isFavorite)}
+        onFavoriteSelect={(place) => {
+          setSelectedPlace(place)
+          if (place.lat && place.lng) {
+            setGuideFocusTarget({ lat: place.lat, lng: place.lng })
+            setMapCenter({ lat: place.lat, lng: place.lng })
+          }
+        }}
       />
 
       {/* 시간대별 히스토리 모달 */}
