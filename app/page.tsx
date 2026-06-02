@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Plus, Navigation } from "lucide-react"
+import { Plus, Navigation, SlidersHorizontal, Layers } from "lucide-react"
 import { SearchBar, type SearchSuggestion } from "@/components/search-bar"
 import { MapView } from "@/components/map-view"
 import { FilterButtons, type FilterState } from "@/components/filter-buttons"
@@ -157,6 +157,8 @@ export default function WaitingNowPage() {
   const [activeSearchQuery, setActiveSearchQuery] = useState(DEFAULT_SEARCH_QUERY)
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
   const [resetZoomSignal, setResetZoomSignal] = useState(0)
+  const [showRadiusPanel, setShowRadiusPanel] = useState(false)
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
   // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
   const searchIdRef = useRef(0)
   const originalOrderRef = useRef<string[]>([])
@@ -756,31 +758,55 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         />
       </div>
 
-      {/* 검색 반경 슬라이더 (세로) */}
-      <div className="absolute top-20 left-4 z-20 flex flex-col items-center bg-card/95 backdrop-blur-sm rounded-xl px-3 py-3 shadow-md border border-border gap-1.5">
-        <span className="text-[10px] text-muted-foreground">9.5km</span>
-        <Slider
-          orientation="vertical"
-          value={[searchRadius]}
-          onValueChange={(v) => { setSearchRadius(v[0]); saveRadius(v[0]) }}
-          min={500}
-          max={9500}
-          step={500}
-          className="h-24 w-2"
-        />
-        <span className="text-[10px] text-muted-foreground">500m</span>
-        <div className="h-px w-full bg-border" />
-        <span className="text-[11px] font-bold text-primary w-10 text-center">
-          {searchRadius >= 1000 ? `${searchRadius / 1000}km` : `${searchRadius}m`}
-        </span>
+      {/* 검색 반경 토글 버튼 + 슬라이더 패널 */}
+      <div className="absolute top-20 left-4 z-20 flex flex-col items-center gap-2">
+        <button
+          onClick={() => setShowRadiusPanel((v) => !v)}
+          className="w-10 h-10 rounded-full bg-card/95 backdrop-blur-sm shadow-md border border-border flex flex-col items-center justify-center gap-0.5"
+        >
+          <Layers className="w-4 h-4 text-primary" />
+          <span className="text-[9px] font-bold text-primary leading-none">
+            {searchRadius >= 1000 ? `${searchRadius / 1000}k` : `${searchRadius}m`}
+          </span>
+        </button>
+        {showRadiusPanel && (
+          <div className="flex flex-col items-center bg-card/95 backdrop-blur-sm rounded-xl px-3 py-3 shadow-md border border-border gap-1.5">
+            <span className="text-[10px] text-muted-foreground">9.5km</span>
+            <Slider
+              orientation="vertical"
+              value={[searchRadius]}
+              onValueChange={(v) => { setSearchRadius(v[0]); saveRadius(v[0]) }}
+              min={500}
+              max={9500}
+              step={500}
+              className="h-24 w-2"
+            />
+            <span className="text-[10px] text-muted-foreground">500m</span>
+            <div className="h-px w-full bg-border" />
+            <span className="text-[11px] font-bold text-primary w-10 text-center">
+              {searchRadius >= 1000 ? `${searchRadius / 1000}km` : `${searchRadius}m`}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* 필터 버튼 */}
-      <div className="absolute top-20 right-4 z-20">
-        <FilterButtons
-          filters={filters}
-          onFilterChange={handleFilterChange}
-        />
+      {/* 필터 토글 버튼 + 필터 패널 */}
+      <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setShowFilterPanel((v) => !v)}
+          className="w-10 h-10 rounded-full bg-card/95 backdrop-blur-sm shadow-md border border-border flex items-center justify-center relative"
+        >
+          <SlidersHorizontal className="w-4 h-4 text-primary" />
+          {(filters.category || filters.waitTime || filters.crowd) && (
+            <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-primary" />
+          )}
+        </button>
+        {showFilterPanel && (
+          <FilterButtons
+            filters={filters}
+            onFilterChange={handleFilterChange}
+          />
+        )}
       </div>
 
       {/* 지도 영역 */}
