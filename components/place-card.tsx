@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, Users, MapPin, Star, ChevronRight } from "lucide-react"
+import { Clock, Users, MapPin, Star, BarChart2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -24,6 +24,7 @@ interface PlaceCardProps {
   place: Place
   onSelect?: (place: Place) => void
   onFavorite?: (place: Place) => void
+  onHistory?: (place: Place) => void
 }
 
 const crowdLevelConfig = {
@@ -33,7 +34,7 @@ const crowdLevelConfig = {
   critical: { label: "매우혼잡", color: "bg-red-500", textColor: "text-red-600" },
 }
 
-export function PlaceCard({ place, onSelect, onFavorite }: PlaceCardProps) {
+export function PlaceCard({ place, onSelect, onFavorite, onHistory }: PlaceCardProps) {
   const crowdConfig = crowdLevelConfig[place.crowdLevel]
 
   return (
@@ -53,20 +54,32 @@ export function PlaceCard({ place, onSelect, onFavorite }: PlaceCardProps) {
             <span className="truncate">{place.address}</span>
           </div>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onFavorite?.(place)
-          }}
-          className="p-1 hover:bg-muted rounded-full transition-colors"
-        >
-          <Star
-            className={cn(
-              "w-5 h-5",
-              place.isFavorite ? "fill-amber-400 text-amber-400" : "text-muted-foreground"
-            )}
-          />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onHistory?.(place)
+            }}
+            className="p-1 hover:bg-muted rounded-full transition-colors"
+            title="시간대별 현황"
+          >
+            <BarChart2 className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onFavorite?.(place)
+            }}
+            className="p-1 hover:bg-muted rounded-full transition-colors"
+          >
+            <Star
+              className={cn(
+                "w-5 h-5",
+                place.isFavorite ? "fill-amber-400 text-amber-400" : "text-muted-foreground"
+              )}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 mt-4">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Plus, Navigation } from "lucide-react"
 import { SearchBar, type SearchSuggestion } from "@/components/search-bar"
 import { MapView } from "@/components/map-view"
@@ -8,11 +8,52 @@ import { FilterButtons, type FilterState } from "@/components/filter-buttons"
 import { BottomSheet } from "@/components/bottom-sheet"
 import { PlaceCard, type Place } from "@/components/place-card"
 import { WaitTimeInputModal } from "@/components/wait-time-input-modal"
+import { WaitTimeHistoryModal } from "@/components/wait-time-history-modal"
+import { MenuSheet } from "@/components/menu-sheet"
+import { MyPageModal } from "@/components/my-page-modal"
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 import { Toaster, toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
 
+// ── localStorage 즐겨찾기 헬퍼 ──────────────────────────────────────
+const FAVORITES_KEY = "qnow_favorites"
+const RADIUS_KEY = "qnow_search_radius"
+const DEFAULT_RADIUS = 5000
+// min=500, max=9500 → default 5000이 정중앙
+const RADIUS_MIN = 500
+const RADIUS_MAX = 9500
+
+function loadRadius(): number {
+  if (typeof window === "undefined") return DEFAULT_RADIUS
+  return parseInt(localStorage.getItem(RADIUS_KEY) ?? String(DEFAULT_RADIUS))
+}
+function saveRadius(r: number) {
+  try { localStorage.setItem(RADIUS_KEY, String(r)) } catch {}
+}
+
+function loadFavorites(): Record<string, Place> {
+  if (typeof window === "undefined") return {}
+  try {
+    const stored = localStorage.getItem(FAVORITES_KEY)
+    return stored ? JSON.parse(stored) : {}
+  } catch { return {} }
+}
+
+function saveFavorites(favorites: Record<string, Place>) {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites)) } catch {}
+}
+
+/** 새로 불러온 places에 localStorage 즐겨찾기 여부를 병합 */
+function mergeFavorites(data: Place[]): Place[] {
+  const favIds = new Set(Object.keys(loadFavorites()))
+  return data.map((p) => ({ ...p, isFavorite: favIds.has(p.id) }))
+}
+// ────────────────────────────────────────────────────────────────────
+
+/* LEGACY CODE - 밑의 코드로 대체됨 (2024-06-20)
 // 샘플 데이터
-const samplePlaces: Place[] = [
+ const samplePlaces: Place[] = [
   {
     id: "1",
     name: "스타벅스 강남역점",
@@ -85,13 +126,13 @@ const samplePlaces: Place[] = [
     lastUpdated: "1분 전",
     isFavorite: false,
   },
-]
+] */
 
 export default function WaitingNowPage() {
   const DEFAULT_SEARCH_QUERY = "음식점"
   const DIVERSE_CATEGORY_QUERIES = ["음식점", "카페", "병원", "은행", "약국", "편의점"]
   const isDeveloperMode = process.env.NODE_ENV !== "production"
-  const [places, setPlaces] = useState<Place[]>(samplePlaces)
+  const [places, setPlaces] = useState<Place[]>([])
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [filters, setFilters] = useState<FilterState>({
     category: null,
@@ -100,6 +141,14 @@ export default function WaitingNowPage() {
   })
   const [isInputModalOpen, setIsInputModalOpen] = useState(false)
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+  const [historyPlace, setHistoryPlace] = useState<Place | null>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [searchRadius, setSearchRadius] = useState<number>(DEFAULT_RADIUS)
+  const [menuInitialView, setMenuInitialView] = useState<"main" | "favorites" | "my-registrations">("main")
+  const [isMyPageOpen, setIsMyPageOpen] = useState(false)
+  const [savedFavorites, setSavedFavorites] = useState<Record<string, Place>>({})
+  const { user, session, isLoading: isAuthLoading, signInWithKakao, signOut } = useAuth()
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
   const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
@@ -107,22 +156,108 @@ export default function WaitingNowPage() {
   const [guideFocusTarget, setGuideFocusTarget] = useState<{lat: number, lng: number} | null>(null)
   const [activeSearchQuery, setActiveSearchQuery] = useState(DEFAULT_SEARCH_QUERY)
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
+  const [resetZoomSignal, setResetZoomSignal] = useState(0)
+  // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
+  const searchIdRef = useRef(0)
+  const originalOrderRef = useRef<string[]>([])
+
+  // 로그인 시 DB 즐겨찾기 불러오기 + localStorage 마이그레이션
+  useEffect(() => {
+    if (!user || !session) return
+
+    const token = session.access_token
+
+    const syncFavorites = async () => {
+      // DB에서 불러오기
+      const res = await fetch("/api/favorites", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const dbData = await res.json()
+
+      if (!Array.isArray(dbData)) return
+
+      const dbFavorites: Record<string, Place> = {}
+      dbData.forEach((fav: any) => {
+        dbFavorites[fav.place_id] = {
+          id: fav.place_id,
+          name: fav.place_name ?? "",
+          address: fav.place_address ?? "",
+          category: fav.place_category ?? "",
+          lat: fav.place_lat,
+          lng: fav.place_lng,
+          distance: "",
+          waitTime: 0,
+          waitingPeople: 0,
+          crowdLevel: "low",
+          lastUpdated: "정보 없음",
+        }
+      })
+
+      // localStorage에만 있는 항목 DB에 마이그레이션
+      const localFavorites = loadFavorites()
+      const localOnly = Object.values(localFavorites).filter((f) => !dbFavorites[f.id])
+      for (const fav of localOnly) {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            place_id: fav.id,
+            place_name: fav.name,
+            place_address: fav.address,
+            place_category: fav.category,
+            place_lat: fav.lat,
+            place_lng: fav.lng,
+          }),
+        })
+        dbFavorites[fav.id] = fav
+      }
+
+      // DB 기준으로 상태 통일
+      setSavedFavorites(dbFavorites)
+      saveFavorites(dbFavorites)
+    }
+
+    syncFavorites()
+  }, [user?.id])
+
+  // 클라이언트 마운트 후 localStorage 값 복원
+  const isRadiusMounted = useRef(false)
+  useEffect(() => {
+    setSearchRadius(loadRadius())
+    setSavedFavorites(loadFavorites())
+  }, [])
+
+  // 반경 변경 시 자동 재검색 (슬라이더 조작 끝나고 500ms 후)
+  useEffect(() => {
+    if (!isRadiusMounted.current) {
+      isRadiusMounted.current = true
+      return
+    }
+    const timer = setTimeout(() => {
+      const location = getActiveLocation()
+      if (location) searchAt(location)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchRadius])
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setUserLocation(loc)
-        setMapViewportCenter(loc)
+        /* 2026-05-26: setMapViewportCenter → setGuideFocusTarget으로 변경
+         * 기존: 내 위치가 지도 수학적 중심에 배치 (십자선과 불일치)
+         * 변경: 현재위치 버튼과 동일하게 내 위치가 십자선에 오도록 통일 */
+        setGuideFocusTarget(loc)
         setMapCenter(loc)
-        fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+        fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
       },
       () => {
         const loc = { lat: 37.4979, lng: 127.0276 }
         setUserLocation(loc)
-        setMapViewportCenter(loc)
+        setGuideFocusTarget(loc)
         setMapCenter(loc)
-        fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+        fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
       }
     )
   }, [])
@@ -157,35 +292,78 @@ export default function WaitingNowPage() {
       }))
   }
 
+  /* 2026-05-26: 2단계 로딩을 위한 헬퍼
+   * Kakao 결과를 먼저 보여준 뒤 Supabase 대기 정보를 비동기로 병합
+   * searchId가 다르면 이미 새 검색이 시작된 것이므로 업데이트 무시 */
+  const formatLastUpdated = (createdAt: string) => {
+    const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000 / 60)
+    if (diff < 1) return "방금 전"
+    if (diff < 60) return `${diff}분 전`
+    const hours = Math.floor(diff / 60)
+    if (hours < 24) return `${hours}시간 전`
+    return `${Math.floor(hours / 24)}일 전`
+  }
+
+  const enrichPlacesAsync = async (places: Place[], searchId: number) => {
+    if (places.length === 0) return
+    const ids = places.map((p) => p.id).join(",")
+    const waitRes = await fetch(`/api/wait-times?ids=${ids}`)
+    const waitTimes: any[] = await waitRes.json()
+
+    if (searchIdRef.current !== searchId) return // 구 검색 결과 무시
+
+    // waitTimes는 created_at DESC(최신순)이므로 먼저 나온 항목(최신)만 유지
+    const waitTimeMap = new Map<string, any>()
+    for (const w of waitTimes) {
+      if (!waitTimeMap.has(w.place_id)) waitTimeMap.set(w.place_id, w)
+    }
+    setPlaces((prev) =>
+      prev.map((place) => {
+        const latest = waitTimeMap.get(place.id)
+        if (!latest) return place
+        return {
+          ...place,
+          waitTime: latest.wait_time,
+          waitingPeople: latest.waiting_people,
+          crowdLevel: latest.crowd_level as Place["crowdLevel"],
+          lastUpdated: formatLastUpdated(latest.created_at),
+        }
+      })
+    )
+  }
+
   const fetchPlaces = async (loc: {lat: number, lng: number}, query: string) => {
-    const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${query}`)
+    const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${query}&radius=${searchRadius}`)
     const data: Place[] = await res.json()
-    setPlaces(data)
+    setPlaces(mergeFavorites(data))
     setSearchSuggestions(buildSearchSuggestions(data, query))
     return data
   }
 
   const fetchPlacesByCategory = async (loc: {lat: number, lng: number}, categoryGroupCode: string, queryForSuggestion = "") => {
     const res = await fetch(
-      `/api/places?lat=${loc.lat}&lng=${loc.lng}&categoryGroupCode=${categoryGroupCode}&query=${encodeURIComponent(queryForSuggestion)}`
+      `/api/places?lat=${loc.lat}&lng=${loc.lng}&categoryGroupCode=${categoryGroupCode}&query=${encodeURIComponent(queryForSuggestion)}&radius=${searchRadius}`
     )
     const data: Place[] = await res.json()
-    setPlaces(data)
+    setPlaces(mergeFavorites(data))
     setSearchSuggestions(buildSearchSuggestions(data, queryForSuggestion || "역"))
     return data
   }
 
+  /* 2026-05-26: 성능 개선 - 클라이언트-서버 왕복 N→1 + 2단계 로딩 적용
+   * Phase 1: skipEnrich=true로 Kakao 결과 즉시 표시 (대기 정보 없음)
+   * Phase 2: /api/wait-times로 Supabase 1번 조회 후 대기 정보 비동기 병합 */
   const fetchMultiplePlaces = async (loc: {lat: number, lng: number}, queries: string[]) => {
-    const results = await Promise.all(
-      queries.map(q => fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&query=${q}`).then(r => r.json()))
-    )
-    const merged: Place[] = results.flat()
-    // 중복 제거
-    const unique = merged.filter((place, index, self) =>
-      index === self.findIndex((p) => p.id === place.id)
-    )
-    setPlaces(unique)
-    return unique
+    const searchId = ++searchIdRef.current
+    const queriesParam = encodeURIComponent(queries.join(","))
+    const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&queries=${queriesParam}&skipEnrich=true&radius=${searchRadius}`)
+    const data: Place[] = await res.json()
+
+    if (searchIdRef.current !== searchId) return data
+    setPlaces(mergeFavorites(data)) // Phase 1: 즉시 표시 (즐겨찾기 병합)
+
+    enrichPlacesAsync(data, searchId) // Phase 2: 대기 정보 비동기 병합 (non-blocking)
+    return data
   }
 
   const fetchDiversePlaces = async (loc: {lat: number, lng: number}, query: string) => {
@@ -200,7 +378,7 @@ export default function WaitingNowPage() {
     setActiveSearchQuery(normalizedQuery)
 
     if (!rawQuery.trim()) {
-      return fetchPlaces(loc, DEFAULT_SEARCH_QUERY)
+      return fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
     }
 
     return fetchDiversePlaces(loc, normalizedQuery)
@@ -218,6 +396,25 @@ export default function WaitingNowPage() {
 
   const resetPinHighlight = () => {
     setSelectedPlace(null)
+    originalOrderRef.current = []
+  }
+
+  const handleDeselect = () => {
+    setSelectedPlace(null)
+    if (originalOrderRef.current.length > 0) {
+      const savedOrder = originalOrderRef.current
+      setPlaces((prev) =>
+        [...prev].sort((a, b) => {
+          const ai = savedOrder.indexOf(a.id)
+          const bi = savedOrder.indexOf(b.id)
+          if (ai === -1 && bi === -1) return 0
+          if (ai === -1) return 1
+          if (bi === -1) return -1
+          return ai - bi
+        })
+      )
+      originalOrderRef.current = []
+    }
   }
 
   const getActiveLocation = () => mapCenter ?? userLocation
@@ -252,21 +449,19 @@ export default function WaitingNowPage() {
     ))
   }
 
+  /** 특정 좌표 기준으로 재검색 — 현재위치 버튼, 이 지역 재검색, 즐겨찾기 이동 공통 사용 */
+  const searchAt = (location: { lat: number; lng: number }) => {
+    resetPinHighlight()
+    executeSearch(location, activeSearchQuery)
+  }
+
   const handleReSearch = () => {
     if (!mapCenter) {
       toast.info("십자선 중심 좌표를 아직 가져오지 못했습니다.")
       return
     }
-
-    resetPinHighlight()
-
-    setFilters({
-      category: null,
-      waitTime: null,
-      crowd: null,
-    })
-
-    executeSearch(mapCenter, activeSearchQuery)
+    setFilters({ category: null, waitTime: null, crowd: null })
+    searchAt(mapCenter)
   }
 
   const handleSearch = (query: string) => {
@@ -300,13 +495,33 @@ export default function WaitingNowPage() {
     setSelectedPlace(place)
     setEditingPlace(place)
     setIsInputModalOpen(true)
+
+    if (place.lastUpdated === "정보 없음") {
+      toast.info("아직 대기 정보가 없어요. 첫 번째로 등록해보세요! 🙌")
+    }
   }
 
   const handleMarkerClick = (place: Place) => {
     setSelectedPlace(place)
 
-    // 업종 필터가 선택된 상태에서만, 클릭한 핀 기준으로 주변 목록을 가까운 순 정렬한다.
-    if (!filters.category) return
+    // 필터 없이 선택만 된 경우: 선택된 장소를 목록 맨 위로
+    if (!filters.category) {
+      setPlaces((prev) => {
+        // 최초 선택이면 원래 순서 저장, 선택 전환이면 기존 저장 순서 유지
+        if (originalOrderRef.current.length === 0) {
+          originalOrderRef.current = prev.map((p) => p.id)
+        }
+        const savedOrder = originalOrderRef.current
+        return [...prev].sort((a, b) => {
+          if (a.id === place.id) return -1
+          if (b.id === place.id) return 1
+          return savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id)
+        })
+      })
+      return
+    }
+
+    // 업종 필터가 선택된 상태: 클릭한 핀 기준으로 주변 목록을 가까운 순 정렬
     if (place.lat == null || place.lng == null) return
 
     const toRad = (deg: number) => (deg * Math.PI) / 180
@@ -348,39 +563,113 @@ export default function WaitingNowPage() {
     })
   }
 
-  const handleFavorite = (place: Place) => {
+  const handleFavorite = async (place: Place) => {
+    const isNowFavorite = !place.isFavorite
+
+    // 로그인 상태면 DB에도 저장
+    if (user && session) {
+      const token = session.access_token
+      if (isNowFavorite) {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            place_id: place.id,
+            place_name: place.name,
+            place_address: place.address,
+            place_category: place.category,
+            place_lat: place.lat,
+            place_lng: place.lng,
+          }),
+        })
+      } else {
+        await fetch(`/api/favorites?place_id=${place.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      }
+    }
+
+    // 항상 localStorage 업데이트 (오프라인 캐시)
+    const current = loadFavorites()
+    if (isNowFavorite) {
+      current[place.id] = place
+    } else {
+      delete current[place.id]
+    }
+    saveFavorites(current)
+    setSavedFavorites({ ...current })
+
     setPlaces((prev) =>
-      prev.map((p) =>
-        p.id === place.id ? { ...p, isFavorite: !p.isFavorite } : p
-      )
+      prev.map((p) => p.id === place.id ? { ...p, isFavorite: isNowFavorite } : p)
     )
-    toast.success(
-      place.isFavorite ? "즐겨찾기에서 제거되었습니다" : "즐겨찾기에 추가되었습니다"
-    )
+    toast.success(isNowFavorite ? "즐겨찾기에 추가되었습니다" : "즐겨찾기에서 제거되었습니다")
   }
 
-  const handleWaitTimeSubmit = (data: {
+  /* 2026-05-26: Supabase 저장 추가
+   * 기존: React 상태만 업데이트 → 새로고침/재검색 시 데이터 소실
+   * 변경: /api/wait-times POST로 Supabase에 저장 후 상태 업데이트 */
+  const handleWaitTimeSubmit = async (data: {
     waitTime: number
     waitingPeople: number
     crowdLevel: string
   }) => {
     if (!editingPlace) return
 
-    setPlaces((prev) =>
-      prev.map((p) =>
-        p.id === editingPlace.id
-          ? {
-              ...p,
-              waitTime: data.waitTime,
-              waitingPeople: data.waitingPeople,
-              crowdLevel: data.crowdLevel as Place["crowdLevel"],
-              lastUpdated: "방금 전",
-            }
-          : p
-      )
-    )
-    toast.success("대기 정보가 업데이트되었습니다!")
-    setEditingPlace(null)
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (session) headers["Authorization"] = `Bearer ${session.access_token}`
+
+      const res = await fetch("/api/wait-times", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          place_id: editingPlace.id,
+          place_name: editingPlace.name,
+          wait_time: data.waitTime,
+          waiting_people: data.waitingPeople,
+          crowd_level: data.crowdLevel,
+          place_lat: editingPlace.lat,
+          place_lng: editingPlace.lng,
+          user_lat: userLocation?.lat,
+          user_lng: userLocation?.lng,
+        }),
+      })
+
+      if (!res.ok) throw new Error("저장 실패")
+
+      const result = await res.json()
+
+      setPlaces((prev) =>
+        prev.map((p) =>
+          p.id === editingPlace.id
+            ? {
+                ...p,
+                waitTime: data.waitTime,
+                waitingPeople: data.waitingPeople,
+                crowdLevel: data.crowdLevel as Place["crowdLevel"],
+                lastUpdated: "방금 전",
+              }
+            : p
+      ))
+
+      if (result.point_earned) {
+        toast.success("대기 정보가 등록되었습니다! +10P 적립")
+      } else if (user) {
+        toast.success("대기 정보가 등록되었습니다! (100m 이내 방문 시 포인트 적립)")
+      } else {
+        toast.success("대기 정보가 등록되었습니다!")
+      }
+    } catch {
+      toast.error("저장 중 오류가 발생했습니다. 다시 시도해주세요.")
+    } finally {
+      setEditingPlace(null)
+    }
+  }
+
+  const handleShowHistory = (place: Place) => {
+    setHistoryPlace(place)
+    setIsHistoryModalOpen(true)
   }
 
   const handleAddNewPlace = () => {
@@ -463,7 +752,27 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           onDebouncedSearch={handleSearch}
           onSuggestionSelect={handleSuggestionSelect}
           suggestions={searchSuggestions}
+          onMenuClick={() => setIsMenuOpen(true)}
         />
+      </div>
+
+      {/* 검색 반경 슬라이더 (세로) */}
+      <div className="absolute top-20 left-4 z-20 flex flex-col items-center bg-card/95 backdrop-blur-sm rounded-xl px-3 py-3 shadow-md border border-border gap-1.5">
+        <span className="text-[10px] text-muted-foreground">9.5km</span>
+        <Slider
+          orientation="vertical"
+          value={[searchRadius]}
+          onValueChange={(v) => { setSearchRadius(v[0]); saveRadius(v[0]) }}
+          min={500}
+          max={9500}
+          step={500}
+          className="h-24 w-2"
+        />
+        <span className="text-[10px] text-muted-foreground">500m</span>
+        <div className="h-px w-full bg-border" />
+        <span className="text-[11px] font-bold text-primary w-10 text-center">
+          {searchRadius >= 1000 ? `${searchRadius / 1000}km` : `${searchRadius}m`}
+        </span>
       </div>
 
       {/* 필터 버튼 */}
@@ -480,12 +789,13 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           places={places}
           selectedPlace={selectedPlace}
           onMarkerClick={handleMarkerClick}
-          onMapBackgroundClick={() => setSelectedPlace(null)}
+          onMapBackgroundClick={handleDeselect}
           center={mapViewportCenter ?? userLocation ?? undefined}
           focusTargetAtGuide={guideFocusTarget}
-          onSearchArea={(lat, lng) => fetchPlaces({ lat, lng }, "음식점")}
+          onSearchArea={(lat, lng) => executeSearch({ lat, lng }, activeSearchQuery)}
           onCenterChange={(lat, lng) => setMapCenter({ lat, lng })}
           onMapCenterChange={(lat, lng) => setActualMapCenter({ lat, lng })}
+          resetZoomSignal={resetZoomSignal}
         />
       </div>
 
@@ -503,8 +813,12 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           const currentLocation = { ...userLocation }
 
           resetPinHighlight()
+          /* LEGACY CODE - 밑의 코드로 대체됨 (2024-06-20)
           setMapViewportCenter(currentLocation)
-          executeSearch(currentLocation, activeSearchQuery)
+           */
+          setGuideFocusTarget(currentLocation)
+          setResetZoomSignal(prev => prev + 1)
+          searchAt(currentLocation)
           toast.info("현재 위치로 이동합니다")
         }}
       >
@@ -569,6 +883,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                 place={place}
                 onSelect={handlePlaceSelect}
                 onFavorite={handleFavorite}
+                onHistory={handleShowHistory}
               />
             ))
           )}
@@ -584,6 +899,54 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           setEditingPlace(null)
         }}
         onSubmit={handleWaitTimeSubmit}
+      />
+
+      {/* 햄버거 메뉴 */}
+      <MenuSheet
+        isOpen={isMenuOpen}
+        onClose={() => { setIsMenuOpen(false); setMenuInitialView("main") }}
+        user={user}
+        session={session}
+        isAuthLoading={isAuthLoading}
+        onSignIn={signInWithKakao}
+        onSignOut={signOut}
+        onOpenMyPage={() => setIsMyPageOpen(true)}
+        initialView={menuInitialView}
+        favoritePlaces={Object.values(savedFavorites).map((fav) => {
+          const current = places.find((p) => p.id === fav.id)
+          return current ?? fav
+        })}
+        onFavoriteSelect={(place) => {
+          setSelectedPlace(place)
+          if (place.lat && place.lng) {
+            const loc = { lat: place.lat, lng: place.lng }
+            setGuideFocusTarget(loc)
+            setMapCenter(loc)
+            searchAt(loc)
+          }
+        }}
+      />
+
+      {/* 시간대별 히스토리 모달 */}
+      <WaitTimeHistoryModal
+        place={historyPlace}
+        isOpen={isHistoryModalOpen}
+        onClose={() => {
+          setIsHistoryModalOpen(false)
+          setHistoryPlace(null)
+        }}
+      />
+
+      {/* 마이페이지 모달 */}
+      <MyPageModal
+        isOpen={isMyPageOpen}
+        onClose={() => setIsMyPageOpen(false)}
+        user={user}
+        session={session}
+        onOpenRegistrations={() => {
+          setMenuInitialView("my-registrations")
+          setIsMenuOpen(true)
+        }}
       />
     </main>
   )

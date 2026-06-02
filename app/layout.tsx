@@ -10,7 +10,7 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: '웨이팅나우 - 실시간 대기시간 알림 서비스',
+  title: 'QNow - 실시간 대기시간 알림 서비스',
   description: '지정한 장소의 실시간 대기시간, 대기 인원, 혼잡도를 확인하고 공유하세요',
   generator: 'v0.app',
   icons: {

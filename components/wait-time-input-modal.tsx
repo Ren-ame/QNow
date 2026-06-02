@@ -33,6 +33,17 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
   const [waitingPeople, setWaitingPeople] = useState(5)
   const [selectedCrowdLevel, setSelectedCrowdLevel] = useState("medium")
 
+  
+  /* Legacy code - 밑의 코드로 대체됨 (2024-06-20)
+   const handleSubmit = () => {
+    onSubmit?.({
+      waitTime,
+      waitingPeople,
+      crowdLevel: selectedCrowdLevel,
+    })
+    onClose()
+  } */
+
   const handleSubmit = () => {
     onSubmit?.({
       waitTime,
