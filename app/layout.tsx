@@ -14,21 +14,8 @@ export const metadata: Metadata = {
   description: '지정한 장소의 실시간 대기시간, 대기 인원, 혼잡도를 확인하고 공유하세요',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/QNow_icon-removebg-preview.png',
+    apple: '/QNow_icon-removebg-preview.png',
   },
 }
 
