@@ -145,12 +145,21 @@ export async function GET(req: NextRequest) {
    * skipEnrich=true 시 Kakao 결과만 즉시 반환 (2단계 로딩 Phase 1용) */
   const queriesParam = searchParams.get("queries")
   const skipEnrich = searchParams.get("skipEnrich") === "true"
+  const radius = Math.min(Math.max(parseInt(searchParams.get("radius") ?? "5000"), 500), 20000)
+
+  // 카카오 로컬 API 제약사항:
+  //   - radius: 최대 20,000m (20km)
+  //   - size: keyword/category 모두 최대 15 (초과 시 API 오류로 빈 결과 반환)
+  //   → radius는 자유롭게 변경 가능하지만, 쿼리당 결과는 최대 15개로 고정
+  const keywordSize = 15
+  const categorySize = 15
+
   if (queriesParam && lat && lng) {
     const queries = queriesParam.split(",").filter(Boolean)
 
     const allDocsArrays = await Promise.all(
       queries.map((q) => {
-        const url = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(q)}&x=${lng}&y=${lat}&radius=5000&size=15`
+        const url = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(q)}&x=${lng}&y=${lat}&radius=${radius}&size=${keywordSize}`
         return requestWithAuth(url).then((data: any) => data.documents ?? [])
       })
     )
@@ -167,7 +176,7 @@ export async function GET(req: NextRequest) {
 
   // 카테고리 그룹 코드가 전달되면 키워드가 아닌 카테고리 전용 조회를 수행한다.
   if (categoryGroupCode && lat && lng) {
-    const categoryUrl = `${KAKAO_LOCAL_BASE_URL}/search/category.json?category_group_code=${encodeURIComponent(categoryGroupCode)}&x=${lng}&y=${lat}&radius=5000&size=15`
+    const categoryUrl = `${KAKAO_LOCAL_BASE_URL}/search/category.json?category_group_code=${encodeURIComponent(categoryGroupCode)}&x=${lng}&y=${lat}&radius=${radius}&size=${categorySize}`
     const categoryData = await requestWithAuth(categoryUrl)
     const categoryDocs: any[] = categoryData.documents ?? []
 
@@ -180,7 +189,7 @@ export async function GET(req: NextRequest) {
   const isSubwayQuery = /역|지하철|subway/i.test(query)
 
   // 1) 기본: 현재 지도 기준 반경 검색
-  const nearbyKeywordUrl = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(query)}&x=${lng}&y=${lat}&radius=5000&size=15`
+  const nearbyKeywordUrl = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(query)}&x=${lng}&y=${lat}&radius=${radius}&size=${keywordSize}`
   const nearbyKeywordData = await requestWithAuth(nearbyKeywordUrl)
 
   let docs: any[] = nearbyKeywordData.documents ?? []
