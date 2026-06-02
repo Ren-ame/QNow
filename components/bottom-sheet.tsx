@@ -67,7 +67,7 @@ export function BottomSheet({ children, className }: BottomSheetProps) {
     <div
       ref={sheetRef}
       className={cn(
-        "absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl shadow-2xl transition-all duration-300 ease-out",
+        "absolute bottom-0 left-0 right-0 z-30 bg-card rounded-t-3xl shadow-2xl transition-all duration-300 ease-out",
         isDragging && "transition-none",
         className
       )}
