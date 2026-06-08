@@ -651,18 +651,21 @@ export default function WaitingNowPage() {
 
       const result = await res.json()
 
+      const updatedFields = {
+        waitTime: data.waitTime,
+        waitingPeople: data.waitingPeople,
+        crowdLevel: data.crowdLevel as Place["crowdLevel"],
+        lastUpdated: "방금 전",
+      }
       setPlaces((prev) =>
-        prev.map((p) =>
-          p.id === editingPlace.id
-            ? {
-                ...p,
-                waitTime: data.waitTime,
-                waitingPeople: data.waitingPeople,
-                crowdLevel: data.crowdLevel as Place["crowdLevel"],
-                lastUpdated: "방금 전",
-              }
-            : p
-      ))
+        prev.map((p) => p.id === editingPlace.id ? { ...p, ...updatedFields } : p)
+      )
+      // 커스텀 장소 대기정보도 즉시 반영
+      if (editingPlace.id.startsWith("custom_")) {
+        setCustomPlaces((prev) =>
+          prev.map((p) => p.id === editingPlace.id ? { ...p, ...updatedFields } : p)
+        )
+      }
 
       if (result.point_earned) {
         toast.success("대기 정보가 등록되었습니다! +10P 적립")
@@ -755,8 +758,35 @@ export default function WaitingNowPage() {
         crowdLevel: "low" as const,
         lastUpdated: "정보 없음",
         isFavorite: false,
-        registeredAt: p.created_at,  // 신규 하이라이트 판별용
+        registeredAt: p.created_at,
       }))
+
+      // 커스텀 장소 대기정보 병합 (wait_times 테이블에서 조회)
+      try {
+        const ids = mapped.map((p) => p.id).join(",")
+        const waitRes = await fetch(`/api/wait-times?ids=${ids}`)
+        if (waitRes.ok) {
+          const waitTimes: any[] = await waitRes.json()
+          const waitTimeMap = new Map<string, any>()
+          for (const w of waitTimes) {
+            if (!waitTimeMap.has(w.place_id)) waitTimeMap.set(w.place_id, w)
+          }
+          const enriched = mapped.map((place) => {
+            const latest = waitTimeMap.get(place.id)
+            if (!latest) return place
+            return {
+              ...place,
+              waitTime: latest.wait_time,
+              waitingPeople: latest.waiting_people,
+              crowdLevel: latest.crowd_level as Place["crowdLevel"],
+              lastUpdated: formatLastUpdated(latest.created_at),
+            }
+          })
+          setCustomPlaces(enriched)
+          return
+        }
+      } catch {}
+
       setCustomPlaces(mapped)
     } catch {}
   }
