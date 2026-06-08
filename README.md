@@ -385,6 +385,27 @@ flowchart TD
 - 모든 항목은 날짜(`YYYY-MM-DD`)를 붙여서 기록
 - 최신 날짜를 위에 추가
 
+### 2026-06-08
+
+- **신규 장소 등록 기능 추가** — 카카오 API에 등록되지 않은 팝업스토어·임시 매장 등을 사용자가 직접 등록할 수 있도록 구현함.
+  - Supabase `custom_places` 테이블 생성 (RLS: 조회 공개, 등록/수정/삭제 본인만)
+  - `GET /api/custom-places`: 반경 내 사용자 등록 장소 조회 (Haversine 정밀 거리 필터)
+  - `POST /api/custom-places`: 신규 장소 등록 (로그인 필수, 비로그인 시 토스트 차단)
+  - `NewPlaceModal` 컴포넌트 — 장소명·카테고리(8종)·위치(지도 중심/내 현재 위치)·주소·설명 입력
+  - 포인트는 어뷰징 방지를 위해 검토 후 지급하는 방식으로 기획 (즉시 지급 없음)
+  - 하단 목록 상단에 "사용자 등록 장소" 섹션 별도 표시
+  - FAB 버튼 "정보 등록" → "신규 등록"으로 변경
+- **시간대별 현황 차트 UX 개선**
+  - 24시간 전체 표시 → 현재 시간 기준 ±2시간(5개 슬롯)으로 범위 축소
+  - `barSize={48}` 고정으로 데이터가 1건일 때 막대가 늘어나는 문제 해결
+  - 현재 시간 막대·라벨 강조(primary 색상, opacity 1.0), 나머지 슬롯은 60%로 흐리게 표시
+  - 데이터 없는 슬롯도 연회색 막대로 자리 유지
+  - API: 24시간 슬롯 항상 0으로 채워 반환
+- **만료된 리프레시 토큰 오류 처리** — `getSession()` 호출 시 `Invalid Refresh Token` 에러가 발생하면 `signOut()`으로 localStorage를 즉시 정리해 다음 로드부터 오류가 재발하지 않도록 처리. `onAuthStateChange`에서 `SIGNED_OUT` 이벤트 명시적 처리 추가.
+- **접근성 경고 수정** — Radix UI `DialogContent`의 `Missing Description` 경고 해소
+  - `command.tsx`: `DialogHeader`(Title+Description)를 `DialogContent` 밖에서 안으로 이동
+  - `WaitTimeHistoryModal`: `DialogDescription sr-only` 추가
+
 ### 2026-06-05
 
 - 지도에서 마커 클릭 시 선택된 장소를 주변 대기 정보 목록 맨 위로 이동시키고, 선택 해제 시 원래 순서로 복원하도록 구현함. (ID 순서를 ref에 저장해 enrichment 데이터 유실 없이 복원)
