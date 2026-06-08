@@ -121,7 +121,6 @@ export async function DELETE(req: NextRequest) {
     .from("custom_places")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id) // 본인 등록 장소만 삭제
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
