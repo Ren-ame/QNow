@@ -102,17 +102,25 @@ export function MyPageModal({ isOpen, onClose, user, session, onOpenRegistration
             </div>
           ) : (
             <div className="p-4 space-y-4">
+              {/* 포인트 카드 */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">보유 포인트</p>
+                <p className="text-2xl font-bold text-primary">
+                  {(data?.total_points ?? 0).toLocaleString()} P
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  이번 달 +{data?.month_points ?? 0}P 적립
+                </p>
+              </div>
+
               {/* 통계 */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "포인트", value: data?.total_points ?? 0, highlight: true },
-                  { label: "제보", value: data?.registration_count ?? 0, highlight: false },
-                  { label: "즐겨찾기", value: data?.favorites_count ?? 0, highlight: false },
+                  { label: "제보", value: data?.registration_count ?? 0 },
+                  { label: "즐겨찾기", value: data?.favorites_count ?? 0 },
                 ].map((stat) => (
-                  <div key={stat.label} className={`rounded-xl p-3 text-center ${stat.highlight ? "bg-primary/10 border border-primary/20" : "bg-muted"}`}>
-                    <p className={`text-lg font-bold ${stat.highlight ? "text-primary" : "text-foreground"}`}>
-                      {stat.value.toLocaleString()}
-                    </p>
+                  <div key={stat.label} className="bg-muted rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-foreground">{stat.value.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
                   </div>
                 ))}
