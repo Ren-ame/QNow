@@ -164,6 +164,7 @@ export default function WaitingNowPage() {
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [isNewPlaceModalOpen, setIsNewPlaceModalOpen] = useState(false)
   const [isLocationPickerMode, setIsLocationPickerMode] = useState(false)
+  const [pickedLocation, setPickedLocation] = useState<{lat: number, lng: number} | null>(null)
   const [customPlaces, setCustomPlaces] = useState<Place[]>([])
   const [showCustomPlaces, setShowCustomPlaces] = useState(true)
   // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
@@ -696,6 +697,7 @@ export default function WaitingNowPage() {
   }
 
   const handleLocationConfirm = () => {
+    setPickedLocation(mapCenter ?? actualMapCenter ?? null)
     setIsLocationPickerMode(false)
     setIsNewPlaceModalOpen(true)
   }
@@ -1190,8 +1192,8 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       <NewPlaceModal
         isOpen={isNewPlaceModalOpen}
         onClose={() => setIsNewPlaceModalOpen(false)}
-        defaultLat={actualMapCenter?.lat ?? mapCenter?.lat}
-        defaultLng={actualMapCenter?.lng ?? mapCenter?.lng}
+        defaultLat={pickedLocation?.lat}
+        defaultLng={pickedLocation?.lng}
         userLat={userLocation?.lat}
         userLng={userLocation?.lng}
         onSubmit={handleNewPlaceSubmit}
