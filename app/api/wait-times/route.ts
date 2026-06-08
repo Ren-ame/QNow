@@ -132,6 +132,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true, point_earned: withinRange && !!user_id })
-
-  return NextResponse.json({ success: true })
 }

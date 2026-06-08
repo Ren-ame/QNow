@@ -268,7 +268,7 @@ export function MenuSheet({
                 onClick: () => setView("favorites"), requireLogin: false,
               },
               {
-                icon: ClipboardList, label: "내가 등록한 정보", description: "내가 올린 대기 정보 모아보기",
+                icon: ClipboardList, label: "등록한 정보", description: "내가 올린 대기 정보 모아보기",
                 onClick: () => setView("my-registrations"), requireLogin: true,
               },
             ].map((item) => {
