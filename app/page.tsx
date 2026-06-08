@@ -150,6 +150,8 @@ export default function WaitingNowPage() {
   const [isMyPageOpen, setIsMyPageOpen] = useState(false)
   const [savedFavorites, setSavedFavorites] = useState<Record<string, Place>>({})
   const { user, session, isLoading: isAuthLoading, signInWithKakao, signOut } = useAuth()
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim())
+  const isAdmin = !!user?.email && adminEmails.includes(user.email)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
   const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
@@ -1106,7 +1108,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                         onSelect={handlePlaceSelect}
                         onFavorite={handleFavorite}
                         onHistory={handleShowHistory}
-                        onDelete={isDeveloperMode ? handleDeleteCustomPlace : undefined}
+                        onDelete={isDeveloperMode || isAdmin ? handleDeleteCustomPlace : undefined}
                       />
                     ))}
                     <div className="border-t border-border pt-3" />
@@ -1129,7 +1131,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                       onFavorite={handleFavorite}
                       onHistory={handleShowHistory}
                       onDelete={
-                        isDeveloperMode && place.id.startsWith("custom_")
+                        (isDeveloperMode || isAdmin) && place.id.startsWith("custom_")
                           ? handleDeleteCustomPlace
                           : undefined
                       }
