@@ -198,57 +198,80 @@ export function MenuSheet({
             )}
           </div>
 
-          {/* 포인트 카드 (로그인 시) */}
-          {user && points !== null && (
-            <div className="px-5 py-3 border-b border-border shrink-0">
-              <button
-                onClick={() => { onClose(); onOpenMyPage() }}
-                className="w-full flex items-center justify-between bg-primary/5 hover:bg-primary/10 transition-colors rounded-xl px-4 py-3"
-              >
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground">나의 포인트</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-primary">{points.total.toLocaleString()}P</span>
-                  {points.month > 0 && (
-                    <span className="text-xs text-emerald-500 font-medium">+{points.month}P</span>
-                  )}
-                </div>
-              </button>
-            </div>
-          )}
-
           {/* 메뉴 목록 */}
           <nav className="flex-1 overflow-y-auto py-2">
-            {/* 즐겨찾기 */}
-            <button onClick={() => setView("favorites")}
-              className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-muted transition-colors">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Star className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium text-foreground">즐겨찾기</span>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {favoritePlaces.length > 0 ? `${favoritePlaces.length}개 저장됨` : "저장된 장소 없음"}
-                </p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-            </button>
-
-            {/* 로그인 필요 항목 */}
+            {/* 마이페이지 + 나의 포인트 */}
             {[
               {
                 icon: User, label: "마이페이지", description: "프로필 및 설정",
                 onClick: () => { onClose(); onOpenMyPage() },
               },
-              {
-                icon: ClipboardList, label: "내가 등록한 정보", description: "내가 올린 대기 정보 모아보기",
-                onClick: () => setView("my-registrations"),
-              },
             ].map((item) => {
               const Icon = item.icon
               const isEnabled = !!user
+              return (
+                <div key={item.label}>
+                  <button disabled={!isEnabled}
+                    onClick={isEnabled ? item.onClick : undefined}
+                    className={cn(
+                      "w-full flex items-center gap-4 px-5 py-4 text-left transition-colors",
+                      isEnabled ? "hover:bg-muted" : "opacity-40 cursor-not-allowed"
+                    )}>
+                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                      isEnabled ? "bg-primary/10" : "bg-muted")}>
+                      <Icon className={cn("w-4 h-4", isEnabled ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{item.label}</span>
+                        {!isEnabled && (
+                          <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                            <Lock className="w-2.5 h-2.5" />로그인 필요
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.description}</p>
+                    </div>
+                    {isEnabled && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                  </button>
+                  {/* 나의 포인트 (마이페이지 바로 아래) */}
+                  {isEnabled && points !== null && (
+                    <div className="px-5 pb-2">
+                      <button
+                        onClick={() => { onClose(); onOpenMyPage() }}
+                        className="w-full flex items-center justify-between bg-primary/5 hover:bg-primary/10 transition-colors rounded-xl px-4 py-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium text-foreground">나의 포인트</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-primary">{points.total.toLocaleString()}P</span>
+                          {points.month > 0 && (
+                            <span className="text-xs text-emerald-500 font-medium">+{points.month}P</span>
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* 즐겨찾기 / 내가 등록한 정보 */}
+            {[
+              {
+                icon: Star, label: "즐겨찾기",
+                description: favoritePlaces.length > 0 ? `${favoritePlaces.length}개 저장됨` : "저장된 장소 없음",
+                onClick: () => setView("favorites"), requireLogin: false,
+              },
+              {
+                icon: ClipboardList, label: "내가 등록한 정보", description: "내가 올린 대기 정보 모아보기",
+                onClick: () => setView("my-registrations"), requireLogin: true,
+              },
+            ].map((item) => {
+              const Icon = item.icon
+              const isEnabled = !item.requireLogin || !!user
               return (
                 <button key={item.label} disabled={!isEnabled}
                   onClick={isEnabled ? item.onClick : undefined}
