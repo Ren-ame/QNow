@@ -952,8 +952,9 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       {isLocationPickerMode && (
         <>
           {/* 중앙 핀 마커 (pointer-events-none: 지도 터치/드래그 방해 안 함) */}
-          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center pb-[30%]">
-            <div className="flex flex-col items-center" style={{ transform: "translateY(-50%)" }}>
+          <div className="absolute inset-0 z-20 pointer-events-none">
+            {/* 핀 꼬리 끝(그림자 점)을 dev 십자선 중심과 동일한 위치(중앙 -200px)에 맞춤 */}
+            <div className="absolute left-1/2 top-1/2 flex flex-col items-center" style={{ transform: "translate(-50%, calc(-100% - 200px))" }}>
               {/* 핀 몸통 */}
               <div className="bg-primary rounded-full p-2.5 shadow-xl border-2 border-white">
                 <MapPin className="w-7 h-7 text-primary-foreground fill-primary-foreground" />
