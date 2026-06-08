@@ -10,6 +10,7 @@ import { PlaceCard, type Place } from "@/components/place-card"
 import { WaitTimeInputModal } from "@/components/wait-time-input-modal"
 import { WaitTimeHistoryModal } from "@/components/wait-time-history-modal"
 import { NewPlaceModal, type NewPlaceData } from "@/components/new-place-modal"
+import { ReportPlaceModal } from "@/components/report-place-modal"
 import { MenuSheet } from "@/components/menu-sheet"
 import { MyPageModal } from "@/components/my-page-modal"
 import { Button } from "@/components/ui/button"
@@ -165,6 +166,8 @@ export default function WaitingNowPage() {
   const [isNewPlaceModalOpen, setIsNewPlaceModalOpen] = useState(false)
   const [isLocationPickerMode, setIsLocationPickerMode] = useState(false)
   const [pickedLocation, setPickedLocation] = useState<{lat: number, lng: number} | null>(null)
+  const [reportingPlace, setReportingPlace] = useState<Place | null>(null)
+  const [pendingReportCount, setPendingReportCount] = useState(0)
   const [customPlaces, setCustomPlaces] = useState<Place[]>([])
   const [showCustomPlaces, setShowCustomPlaces] = useState(true)
   // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
@@ -172,6 +175,10 @@ export default function WaitingNowPage() {
   const originalOrderRef = useRef<string[]>([])
 
   // 로그인 시 DB 즐겨찾기 불러오기 + localStorage 마이그레이션
+  useEffect(() => {
+    if (isAdmin && session) fetchPendingReportCount()
+  }, [isAdmin, session])
+
   useEffect(() => {
     if (!user || !session) return
 
@@ -816,6 +823,35 @@ export default function WaitingNowPage() {
     }
   }
 
+  const handleReportPlace = async (reason: string, detail: string) => {
+    if (!reportingPlace || !session) return
+    const res = await fetch("/api/place-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        place_id: reportingPlace.id,
+        place_name: reportingPlace.name,
+        reason,
+        detail,
+      }),
+    })
+    if (!res.ok) throw new Error("신고 접수 실패")
+  }
+
+  const fetchPendingReportCount = async () => {
+    if (!session || !isAdmin) return
+    const res = await fetch("/api/place-reports", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    if (res.ok) {
+      const { count } = await res.json()
+      setPendingReportCount(count ?? 0)
+    }
+  }
+
   const categoryMap: Record<string, string | string[]> = {
     subway: "SW8",
     cafe: "카페",
@@ -892,6 +928,15 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           suggestions={searchSuggestions}
           onMenuClick={() => setIsMenuOpen(true)}
         />
+        {/* 어드민 미처리 신고 뱃지 */}
+        {isAdmin && pendingReportCount > 0 && (
+          <button
+            onClick={() => setIsMenuOpen(true)}
+            className="absolute top-3 right-3 z-30 flex items-center gap-1 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse"
+          >
+            🚨 {pendingReportCount}
+          </button>
+        )}
       </div>
 
       {/* 검색 반경 토글 버튼 + 슬라이더 패널 */}
@@ -1141,6 +1186,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                         onSelect={handlePlaceSelect}
                         onFavorite={handleFavorite}
                         onHistory={handleShowHistory}
+                        onReport={user ? () => setReportingPlace(place) : undefined}
                         onDelete={isDeveloperMode || isAdmin ? handleDeleteCustomPlace : undefined}
                       />
                     ))}
@@ -1163,6 +1209,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                       onSelect={handlePlaceSelect}
                       onFavorite={handleFavorite}
                       onHistory={handleShowHistory}
+                      onReport={user && place.id.startsWith("custom_") ? () => setReportingPlace(place) : undefined}
                       onDelete={
                         (isDeveloperMode || isAdmin) && place.id.startsWith("custom_")
                           ? handleDeleteCustomPlace
@@ -1197,6 +1244,14 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         userLat={userLocation?.lat}
         userLng={userLocation?.lng}
         onSubmit={handleNewPlaceSubmit}
+      />
+
+      {/* 장소 신고 모달 */}
+      <ReportPlaceModal
+        isOpen={!!reportingPlace}
+        onClose={() => setReportingPlace(null)}
+        placeName={reportingPlace?.name ?? ""}
+        onSubmit={handleReportPlace}
       />
 
       {/* 햄버거 메뉴 */}
