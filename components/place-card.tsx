@@ -18,6 +18,7 @@ export interface Place {
   crowdLevel: "low" | "medium" | "high" | "critical"
   lastUpdated: string
   isFavorite?: boolean
+  registeredAt?: string  // custom_places 등록 시각 (ISO string) — 신규 하이라이트 판별용
 }
 
 interface PlaceCardProps {

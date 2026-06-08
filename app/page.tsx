@@ -728,6 +728,7 @@ export default function WaitingNowPage() {
       crowdLevel: "low",
       lastUpdated: "방금 전",
       isFavorite: false,
+      registeredAt: created.created_at ?? new Date().toISOString(),
     }
     setCustomPlaces((prev) => [newPlace, ...prev])
     toast.success("장소가 등록됐어요! 포인트는 검토 후 지급됩니다 🎉")
@@ -751,6 +752,7 @@ export default function WaitingNowPage() {
         crowdLevel: "low" as const,
         lastUpdated: "정보 없음",
         isFavorite: false,
+        registeredAt: p.created_at,  // 신규 하이라이트 판별용
       }))
       setCustomPlaces(mapped)
     } catch {}
@@ -1034,45 +1036,63 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
             </span>
           </div>
 
-          {/* 사용자 등록 신규 장소 (상단 표시) */}
-          {customPlaces.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-primary flex items-center gap-1">
-                <Plus className="w-3 h-3" /> 사용자 등록 장소
-              </p>
-              {customPlaces.map((place) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  onSelect={handlePlaceSelect}
-                  onFavorite={handleFavorite}
-                  onHistory={handleShowHistory}
-                />
-              ))}
-              <div className="border-t border-border pt-3" />
-            </div>
-          )}
+          {/* 24시간 이내 신규 등록 장소: 상단 고정 / 이후: 거리순 일반 목록 편입 */}
+          {(() => {
+            const HIGHLIGHT_MS = 24 * 60 * 60 * 1000 // 24시간
+            const now = Date.now()
+            const newCustom = customPlaces.filter(
+              (p) => p.registeredAt && now - new Date(p.registeredAt).getTime() < HIGHLIGHT_MS
+            )
+            const oldCustom = customPlaces.filter(
+              (p) => !p.registeredAt || now - new Date(p.registeredAt).getTime() >= HIGHLIGHT_MS
+            )
+            // 24시간 지난 커스텀 장소는 일반 목록에 거리순으로 편입
+            const distNum = (d: string) => parseInt(d.replace("m", "")) || Number.MAX_SAFE_INTEGER
+            const allPlaces = [...places, ...oldCustom].sort(
+              (a, b) => distNum(a.distance) - distNum(b.distance)
+            )
 
-          {places.length === 0 && customPlaces.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                <Navigation className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <p className="text-muted-foreground">
-                검색 결과가 없습니다
-              </p>
-            </div>
-          ) : (
-            places.map((place) => (
-              <PlaceCard
-                key={place.id}
-                place={place}
-                onSelect={handlePlaceSelect}
-                onFavorite={handleFavorite}
-                onHistory={handleShowHistory}
-              />
-            ))
-          )}
+            return (
+              <>
+                {newCustom.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-primary flex items-center gap-1">
+                      <Plus className="w-3 h-3" /> 신규 등록 장소
+                    </p>
+                    {newCustom.map((place) => (
+                      <PlaceCard
+                        key={place.id}
+                        place={place}
+                        onSelect={handlePlaceSelect}
+                        onFavorite={handleFavorite}
+                        onHistory={handleShowHistory}
+                      />
+                    ))}
+                    <div className="border-t border-border pt-3" />
+                  </div>
+                )}
+
+                {allPlaces.length === 0 && newCustom.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                      <Navigation className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground">검색 결과가 없습니다</p>
+                  </div>
+                ) : (
+                  allPlaces.map((place) => (
+                    <PlaceCard
+                      key={place.id}
+                      place={place}
+                      onSelect={handlePlaceSelect}
+                      onFavorite={handleFavorite}
+                      onHistory={handleShowHistory}
+                    />
+                  ))
+                )}
+              </>
+            )
+          })()}
         </div>
       </BottomSheet>
 
