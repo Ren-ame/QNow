@@ -5,6 +5,7 @@ import { BarChart2, Clock, Users, Info } from "lucide-react"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -116,6 +117,9 @@ export function WaitTimeHistoryModal({ place, isOpen, onClose }: WaitTimeHistory
             <BarChart2 className="w-5 h-5 text-primary" />
             시간대별 대기 현황
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            장소별 시간대 평균 대기시간 및 혼잡도 통계
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
