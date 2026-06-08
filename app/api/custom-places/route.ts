@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase"
 
+// 조회용 anon 클라이언트 (RLS SELECT 정책 적용)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -73,7 +75,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "name, lat, lng는 필수입니다" }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  // 인증은 위에서 완료 → service role로 insert (RLS auth.uid() 컨텍스트 없어도 동작)
+  const serviceClient = createServiceClient()
+  const { data, error } = await serviceClient
     .from("custom_places")
     .insert({
       user_id: user.id,
