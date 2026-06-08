@@ -9,7 +9,7 @@ const supabase = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } }
 )
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(",")[0]?.trim() ?? ""
+const RESEND_TO_EMAIL = process.env.RESEND_TO_EMAIL ?? ""
 
 /** POST /api/place-reports — 장소 신고 접수 */
 export async function POST(req: NextRequest) {
@@ -42,12 +42,12 @@ export async function POST(req: NextRequest) {
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
 
   // 어드민 이메일 발송
-  if (ADMIN_EMAIL && process.env.RESEND_API_KEY) {
+  if (RESEND_TO_EMAIL && process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: "QNow <onboarding@resend.dev>",
-        to: ADMIN_EMAIL,
+        to: RESEND_TO_EMAIL,
         subject: `[QNow] 장소 신고 접수 — ${place_name}`,
         html: `
           <h2>🚨 신규 장소 신고가 접수되었습니다</h2>

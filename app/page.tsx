@@ -1186,7 +1186,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                         onSelect={handlePlaceSelect}
                         onFavorite={handleFavorite}
                         onHistory={handleShowHistory}
-                        onReport={user ? () => setReportingPlace(place) : undefined}
+                        onReport={() => user ? setReportingPlace(place) : toast.error("신고하려면 로그인이 필요합니다")}
                         onDelete={isDeveloperMode || isAdmin ? handleDeleteCustomPlace : undefined}
                       />
                     ))}
@@ -1209,7 +1209,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                       onSelect={handlePlaceSelect}
                       onFavorite={handleFavorite}
                       onHistory={handleShowHistory}
-                      onReport={user && place.id.startsWith("custom_") ? () => setReportingPlace(place) : undefined}
+                      onReport={place.id.startsWith("custom_") ? () => user ? setReportingPlace(place) : toast.error("신고하려면 로그인이 필요합니다") : undefined}
                       onDelete={
                         (isDeveloperMode || isAdmin) && place.id.startsWith("custom_")
                           ? handleDeleteCustomPlace
