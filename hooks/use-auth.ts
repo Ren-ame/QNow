@@ -18,15 +18,30 @@ export function useAuth(): AuthState {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        // 만료·무효 리프레시 토큰 → localStorage 정리 후 비로그인 처리
+        // Supabase가 내부적으로 console.error를 찍지만 동작에는 영향 없음
+        supabase.auth.signOut().catch(() => {})
+        setSession(null)
+        setUser(null)
+        setIsLoading(false)
+        return
+      }
       setSession(session)
       setUser(session?.user ?? null)
       setIsLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // TOKEN_REFRESHED: 세션 갱신 성공 / SIGNED_OUT: 리프레시 실패 후 자동 로그아웃
+      if (event === "SIGNED_OUT") {
+        setSession(null)
+        setUser(null)
+      } else {
+        setSession(session)
+        setUser(session?.user ?? null)
+      }
       setIsLoading(false)
     })
 

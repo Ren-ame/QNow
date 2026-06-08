@@ -76,7 +76,21 @@ export function WaitTimeHistoryModal({ place, isOpen, onClose }: WaitTimeHistory
 
   if (!place) return null
 
-  const totalSamples = history.reduce((sum, h) => sum + h.count, 0)
+  // 현재 시간 기준 ±2시간 윈도우 (5개 슬롯)
+  const currentHour = new Date().getHours()
+  const windowHours = [-2, -1, 0, 1, 2].map((offset) => (currentHour + offset + 24) % 24)
+  const visibleHistory = windowHours.map(
+    (h) => history.find((e) => e.hour === h) ?? {
+      hour: h,
+      label: `${String(h).padStart(2, "0")}시`,
+      avg_wait_time: 0,
+      avg_waiting_people: 0,
+      dominant_crowd: "low" as const,
+      count: 0,
+    }
+  )
+
+  const totalSamples = visibleHistory.reduce((sum, h) => sum + h.count, 0)
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null
@@ -148,16 +162,30 @@ export function WaitTimeHistoryModal({ place, isOpen, onClose }: WaitTimeHistory
                   평균 대기시간 (분)
                 </p>
                 <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={history} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                  <BarChart data={visibleHistory} margin={{ top: 4, right: 16, left: -16, bottom: 0 }} barCategoryGap="30%">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} unit="분" />
+                    <XAxis
+                      dataKey="label"
+                      tick={({ x, y, payload }) => (
+                        <text
+                          x={x} y={y + 10}
+                          textAnchor="middle"
+                          fontSize={11}
+                          fill={payload.value === `${String(currentHour).padStart(2, "0")}시` ? "hsl(var(--primary))" : "#94a3b8"}
+                          fontWeight={payload.value === `${String(currentHour).padStart(2, "0")}시` ? 700 : 400}
+                        >
+                          {payload.value}
+                        </text>
+                      )}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} unit="분" domain={[0, "auto"]} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="avg_wait_time" radius={[4, 4, 0, 0]}>
-                      {history.map((entry, i) => (
+                    <Bar dataKey="avg_wait_time" radius={[4, 4, 0, 0]} barSize={48} minPointSize={0}>
+                      {visibleHistory.map((entry, i) => (
                         <Cell
                           key={i}
-                          fill={crowdColorMap[entry.dominant_crowd] ?? "#94a3b8"}
+                          fill={entry.count > 0 ? (crowdColorMap[entry.dominant_crowd] ?? "#94a3b8") : "#e2e8f0"}
+                          opacity={entry.hour === currentHour ? 1 : 0.6}
                         />
                       ))}
                     </Bar>
@@ -172,11 +200,37 @@ export function WaitTimeHistoryModal({ place, isOpen, onClose }: WaitTimeHistory
                   평균 대기 인원 (명)
                 </p>
                 <ResponsiveContainer width="100%" height={150}>
-                  <BarChart data={history} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                  <BarChart data={visibleHistory} margin={{ top: 4, right: 16, left: -16, bottom: 0 }} barCategoryGap="30%">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} unit="명" />
-                    <Bar dataKey="avg_waiting_people" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <XAxis
+                      dataKey="label"
+                      tick={({ x, y, payload }) => (
+                        <text
+                          x={x} y={y + 10}
+                          textAnchor="middle"
+                          fontSize={11}
+                          fill={payload.value === `${String(currentHour).padStart(2, "0")}시` ? "hsl(var(--primary))" : "#94a3b8"}
+                          fontWeight={payload.value === `${String(currentHour).padStart(2, "0")}시` ? 700 : 400}
+                        >
+                          {payload.value}
+                        </text>
+                      )}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} unit="명" domain={[0, "auto"]} />
+                    <Bar
+                      dataKey="avg_waiting_people"
+                      radius={[4, 4, 0, 0]}
+                      barSize={48}
+                      minPointSize={0}
+                    >
+                      {visibleHistory.map((entry, i) => (
+                        <Cell
+                          key={i}
+                          fill={entry.count > 0 ? "hsl(var(--primary))" : "#e2e8f0"}
+                          opacity={entry.hour === currentHour ? 1 : 0.6}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>

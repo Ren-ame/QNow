@@ -51,16 +51,18 @@ export async function GET(req: NextRequest) {
     hourlyMap.set(hour, arr)
   }
 
-  const history = Array.from(hourlyMap.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([hour, recs]) => ({
+  // 0~23시 전체를 채워서 반환 — 데이터 없는 시간대는 0으로 표시
+  const history = Array.from({ length: 24 }, (_, hour) => {
+    const recs = hourlyMap.get(hour) ?? []
+    return {
       hour,
       label: `${String(hour).padStart(2, "0")}시`,
-      avg_wait_time: iqrMean(recs.map((r) => r.wait_time)),
-      avg_waiting_people: iqrMean(recs.map((r) => r.waiting_people)),
-      dominant_crowd: mode(recs.map((r) => r.crowd_level)),
+      avg_wait_time: recs.length > 0 ? iqrMean(recs.map((r) => r.wait_time)) : 0,
+      avg_waiting_people: recs.length > 0 ? iqrMean(recs.map((r) => r.waiting_people)) : 0,
+      dominant_crowd: recs.length > 0 ? mode(recs.map((r) => r.crowd_level)) : ("low" as const),
       count: recs.length,
-    }))
+    }
+  })
 
   return NextResponse.json(history)
 }
