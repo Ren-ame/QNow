@@ -410,6 +410,19 @@ flowchart TD
   - dev 환경(`NODE_ENV !== "production"`)에서는 항상 노출
   - 프로덕션에서는 `NEXT_PUBLIC_ADMIN_EMAILS` 환경변수에 등록된 어드민 이메일로 로그인 시 노출
   - 신규 섹션 및 일반 목록 편입 후에도 삭제 가능 (Kakao API 장소에는 버튼 없음)
+- **커스텀 장소 대기정보 실시간 반영** — `fetchCustomPlaces` 완료 후 커스텀 장소 ID를 `/api/wait-times`에 일괄 조회해 `waitTime·peopleCount·crowdLevel` 실제 데이터를 병합함. 대기정보 입력 시 `customPlaces` 상태도 즉시 갱신.
+- **커스텀 장소 지도 마커 구분** — 커스텀 장소 마커의 테두리를 흰색 대신 보라색(`#7c3aed`)으로 표시해 일반 장소와 시각적으로 구분. 선택된 팝업에도 "★ 신규 등록 장소" 라벨 + 보라색 좌측 테두리 추가.
+- **위치 픽커 핀 위치 정확도 수정** — `NewPlaceModal`에서 지도 핀(십자선 기준) 위치와 실제 등록 좌표가 어긋나던 문제 수정. `handleLocationConfirm` 시 `mapCenter`(가이드 중심)를 `pickedLocation`에 저장해 정확한 핀 위치로 등록되도록 처리.
+- **커스텀 장소 신고(사이렌) 기능 추가** — 모든 유저가 커스텀 장소에 신고 버튼을 볼 수 있도록 `PlaceCard`에 `onReport` prop 추가. 비로그인 시 클릭하면 토스트 안내.
+  - `ReportPlaceModal` 컴포넌트 신규 추가 — 신고 사유 6종 선택(pill) + 상세 내용 입력 + 접수 완료 화면
+  - `POST /api/place-reports`: 신고 DB 저장 + Resend 이메일 발송 (어드민 알림)
+  - `GET /api/place-reports`: 미처리 신고 수 조회 / `?list=true` 목록 조회 (어드민 전용)
+  - `PATCH /api/place-reports?id=`: 신고 상태 변경 (resolved/dismissed, 어드민 전용)
+  - Supabase `place_reports` 테이블 생성 — `place_id, place_name, reason, detail, user_id, status`
+  - Resend 이메일은 계정 소유자 이메일(`RESEND_TO_EMAIL`)로 발송 (무료 플랜 제한)
+- **어드민 신고 내역 메뉴 추가** — `NEXT_PUBLIC_ADMIN_EMAILS`에 등록된 계정으로 로그인 시 메뉴에 "신고 내역" 항목 노출. 미처리 신고 수 배지 표시. 신고별 처리(해결/기각) 버튼 제공.
+- **메뉴 구조 개편** — 마이페이지 + 나의 포인트를 같은 섹션으로 묶고, 즐겨찾기/등록한 정보 섹션과 구분선으로 분리.
+- **마이페이지 UI 개선** — 보유 포인트 카드는 유지하고 하단 통계를 3칸(총 제보·즐겨찾기·포인트)에서 2칸(제보·즐겨찾기)으로 축소해 중복 제거.
 
 ### 2026-06-05
 
@@ -492,6 +505,8 @@ flowchart TD
 | # | 내용 | 비고 | 상태 |
 |---|------|------|------|
 | 1 | 첫 로그인 후 재로그인 시 이전 세션이 남아 다른 계정으로 전환 불가 | Supabase 세션이 localStorage에 유지된 채 로그아웃이 완전히 처리되지 않는 것으로 추정 | 미해결 |
-| 2 | 신규 등록된 장소를 지도 마커에 표시 | 커스텀 장소 핀을 일반 마커와 구분되는 디자인으로 표시 | 완료 |
-| 3 | 커스텀 장소 수정 기능 | 등록자 본인이 장소 정보 수정 가능, 비어드민 유저는 어드민에게 삭제 요청 가능 | 미완료 |
+| 2 | 신규 등록된 장소를 지도 마커에 표시 | 커스텀 장소 핀을 보라색 테두리로 일반 마커와 구분 | 완료 |
+| 3 | 커스텀 장소 수정 기능 | 등록자 본인이 장소 정보(장소명·카테고리·설명 등) 수정 가능 | 미완료 |
 | 4 | 커스텀 장소 대기정보 표시 | `wait_times` 테이블에서 커스텀 장소 ID 기준으로 조회해서 반영 | 완료 |
+| 5 | Supabase RLS 설정 | `custom_places`, `place_reports` 테이블 RLS 프로덕션 적용 | 미완료 |
+| 6 | Vercel 환경변수 설정 | `RESEND_API_KEY`, `RESEND_TO_EMAIL`, `NEXT_PUBLIC_ADMIN_EMAILS` 프로덕션 등록 | 미완료 |
