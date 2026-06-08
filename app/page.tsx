@@ -1265,6 +1265,8 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         onSignOut={signOut}
         onOpenMyPage={() => setIsMyPageOpen(true)}
         initialView={menuInitialView}
+        isAdmin={isAdmin}
+        pendingReportCount={pendingReportCount}
         favoritePlaces={Object.values(savedFavorites).map((fav) => {
           const current = places.find((p) => p.id === fav.id)
           return current ?? fav

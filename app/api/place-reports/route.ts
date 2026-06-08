@@ -70,7 +70,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ success: true }, { status: 201 })
 }
 
-/** GET /api/place-reports/count — 어드민용 미처리 신고 수 */
+/** GET /api/place-reports — 어드민용 신고 조회
+ *  ?list=true  → 미처리 신고 목록
+ *  (기본)      → 미처리 신고 수만 */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
   if (!authHeader) return NextResponse.json({ count: 0 })
@@ -84,10 +86,50 @@ export async function GET(req: NextRequest) {
   }
 
   const serviceClient = createServiceClient()
+  const isList = new URL(req.url).searchParams.get("list") === "true"
+
+  if (isList) {
+    const { data } = await serviceClient
+      .from("place_reports")
+      .select("id, created_at, place_id, place_name, reason, detail, status")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+    return NextResponse.json({ reports: data ?? [] })
+  }
+
   const { count } = await serviceClient
     .from("place_reports")
     .select("*", { count: "exact", head: true })
     .eq("status", "pending")
 
   return NextResponse.json({ count: count ?? 0 })
+}
+
+/** PATCH /api/place-reports?id= — 어드민용 신고 상태 변경 */
+export async function PATCH(req: NextRequest) {
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader) return NextResponse.json({ error: "인증 필요" }, { status: 401 })
+
+  const { data: { user } } = await supabase.auth.getUser(
+    authHeader.replace("Bearer ", "")
+  )
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map(e => e.trim())
+  if (!user?.email || !adminEmails.includes(user.email)) {
+    return NextResponse.json({ error: "권한 없음" }, { status: 403 })
+  }
+
+  const id = new URL(req.url).searchParams.get("id")
+  const { status } = await req.json()
+  if (!id || !["resolved", "dismissed"].includes(status)) {
+    return NextResponse.json({ error: "잘못된 요청" }, { status: 400 })
+  }
+
+  const serviceClient = createServiceClient()
+  const { error } = await serviceClient
+    .from("place_reports")
+    .update({ status })
+    .eq("id", id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
 }

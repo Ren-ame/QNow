@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Star, ClipboardList, User, Megaphone, Info, ChevronRight, ChevronLeft, Lock, MapPin, LogOut, Clock, Users, Zap } from "lucide-react"
+import { Star, ClipboardList, User, Megaphone, Info, ChevronRight, ChevronLeft, Lock, MapPin, LogOut, Clock, Users, Zap, Siren, CheckCircle, XCircle } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -25,6 +25,18 @@ interface MenuSheetProps {
   onSignOut: () => void
   onOpenMyPage: () => void
   initialView?: View
+  isAdmin?: boolean
+  pendingReportCount?: number
+}
+
+interface PlaceReport {
+  id: string
+  created_at: string
+  place_id: string
+  place_name: string
+  reason: string
+  detail: string | null
+  status: "pending" | "resolved" | "dismissed"
 }
 
 interface MyRegistration {
@@ -37,7 +49,7 @@ interface MyRegistration {
   created_at: string
 }
 
-type View = "main" | "favorites" | "my-registrations"
+type View = "main" | "favorites" | "my-registrations" | "reports"
 
 const crowdLabelMap: Record<string, string> = {
   low: "여유", medium: "보통", high: "혼잡", critical: "매우혼잡",
@@ -60,7 +72,7 @@ function formatDate(iso: string) {
 export function MenuSheet({
   isOpen, onClose, favoritePlaces, onFavoriteSelect,
   user, session, isAuthLoading, onSignIn, onSignOut, onOpenMyPage,
-  initialView = "main",
+  initialView = "main", isAdmin = false, pendingReportCount = 0,
 }: MenuSheetProps) {
   const [view, setView] = useState<View>(initialView)
 
@@ -70,6 +82,8 @@ export function MenuSheet({
   const [registrations, setRegistrations] = useState<MyRegistration[]>([])
   const [isLoadingReg, setIsLoadingReg] = useState(false)
   const [points, setPoints] = useState<{ total: number; month: number } | null>(null)
+  const [reports, setReports] = useState<PlaceReport[]>([])
+  const [isLoadingReports, setIsLoadingReports] = useState(false)
 
   useEffect(() => {
     if (!user || !session) { setPoints(null); return }
@@ -84,6 +98,32 @@ export function MenuSheet({
       onClose()
       setTimeout(() => setView("main"), 300)
     }
+  }
+
+  // 신고 내역 뷰 진입 시 데이터 로딩
+  useEffect(() => {
+    if (view !== "reports" || !session || !isAdmin) return
+    setIsLoadingReports(true)
+    fetch("/api/place-reports?list=true", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setReports(Array.isArray(d.reports) ? d.reports : []))
+      .catch(() => setReports([]))
+      .finally(() => setIsLoadingReports(false))
+  }, [view, session, isAdmin])
+
+  const handleReportAction = async (reportId: string, status: "resolved" | "dismissed") => {
+    if (!session) return
+    await fetch(`/api/place-reports?id=${reportId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ status }),
+    })
+    setReports((prev) => prev.filter((r) => r.id !== reportId))
   }
 
   // 내가 등록한 정보 뷰 진입 시 데이터 로딩
@@ -236,6 +276,33 @@ export function MenuSheet({
               )
             })}
 
+            {/* 어드민 전용 신고 내역 */}
+            {isAdmin && (
+              <>
+                <div className="h-px bg-border mx-5 my-2" />
+                <button
+                  onClick={() => setView("reports")}
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-red-50 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0 relative">
+                    <Siren className="w-4 h-4 text-red-500" />
+                    {pendingReportCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {pendingReportCount > 9 ? "9+" : pendingReportCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-red-600">신고 내역</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {pendingReportCount > 0 ? `미처리 ${pendingReportCount}건` : "미처리 없음"}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                </button>
+              </>
+            )}
+
             <div className="h-px bg-border mx-5 my-2" />
 
             {[
@@ -368,6 +435,66 @@ export function MenuSheet({
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Users className="w-3 h-3" />{reg.waiting_people}명
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── 신고 내역 뷰 (어드민) ── */}
+        <div className={cn(
+          "absolute inset-0 flex flex-col transition-transform duration-300",
+          view === "reports" ? "translate-x-0" : "translate-x-full"
+        )}>
+          <div className="flex items-center gap-3 px-4 pt-8 pb-4 border-b border-border shrink-0">
+            <button onClick={() => setView("main")} className="p-1.5 hover:bg-muted rounded-full transition-colors">
+              <ChevronLeft className="w-5 h-5 text-foreground" />
+            </button>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">신고 내역</h2>
+              <p className="text-xs text-muted-foreground">
+                {reports.length > 0 ? `미처리 ${reports.length}건` : "미처리 없음"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {isLoadingReports ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : reports.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-6 pb-12">
+                <Siren className="w-12 h-12 text-muted-foreground/30 mb-3" />
+                <p className="text-sm font-medium text-foreground">미처리 신고가 없습니다</p>
+              </div>
+            ) : (
+              <div className="py-2">
+                {reports.map((report) => (
+                  <div key={report.id} className="px-5 py-4 border-b border-border last:border-b-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm font-semibold text-foreground truncate flex-1">{report.place_name}</p>
+                      <span className="text-xs text-muted-foreground shrink-0">{formatDate(report.created_at)}</span>
+                    </div>
+                    <p className="text-xs font-medium text-red-500 mb-1">{report.reason}</p>
+                    {report.detail && (
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{report.detail}</p>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => handleReportAction(report.id, "resolved")}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-medium hover:bg-emerald-100 transition-colors"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> 처리 완료
+                      </button>
+                      <button
+                        onClick={() => handleReportAction(report.id, "dismissed")}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/70 transition-colors"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> 무시
+                      </button>
                     </div>
                   </div>
                 ))}
