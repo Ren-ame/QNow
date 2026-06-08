@@ -9,6 +9,7 @@ import { BottomSheet } from "@/components/bottom-sheet"
 import { PlaceCard, type Place } from "@/components/place-card"
 import { WaitTimeInputModal } from "@/components/wait-time-input-modal"
 import { WaitTimeHistoryModal } from "@/components/wait-time-history-modal"
+import { NewPlaceModal, type NewPlaceData } from "@/components/new-place-modal"
 import { MenuSheet } from "@/components/menu-sheet"
 import { MyPageModal } from "@/components/my-page-modal"
 import { Button } from "@/components/ui/button"
@@ -159,6 +160,8 @@ export default function WaitingNowPage() {
   const [resetZoomSignal, setResetZoomSignal] = useState(0)
   const [showRadiusPanel, setShowRadiusPanel] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [isNewPlaceModalOpen, setIsNewPlaceModalOpen] = useState(false)
+  const [customPlaces, setCustomPlaces] = useState<Place[]>([])
   // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
   const searchIdRef = useRef(0)
   const originalOrderRef = useRef<string[]>([])
@@ -253,6 +256,7 @@ export default function WaitingNowPage() {
         setGuideFocusTarget(loc)
         setMapCenter(loc)
         fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
+        fetchCustomPlaces(loc.lat, loc.lng, searchRadius)
       },
       () => {
         const loc = { lat: 37.4979, lng: 127.0276 }
@@ -260,6 +264,7 @@ export default function WaitingNowPage() {
         setGuideFocusTarget(loc)
         setMapCenter(loc)
         fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
+        fetchCustomPlaces(loc.lat, loc.lng, searchRadius)
       }
     )
   }, [])
@@ -675,9 +680,69 @@ export default function WaitingNowPage() {
   }
 
   const handleAddNewPlace = () => {
-    // 새로운 장소 추가 로직 (데모용으로 첫 번째 장소 선택)
-    setEditingPlace(null)
-    setIsInputModalOpen(true)
+    if (!user) {
+      toast.error("신규 장소 등록은 로그인이 필요합니다")
+      return
+    }
+    setIsNewPlaceModalOpen(true)
+  }
+
+  const handleNewPlaceSubmit = async (data: NewPlaceData) => {
+    if (!session) return
+    const res = await fetch("/api/custom-places", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      toast.error(err.error ?? "등록에 실패했습니다")
+      return
+    }
+    const created = await res.json()
+    // Place 형태로 변환 후 지도에 즉시 반영
+    const newPlace: Place = {
+      id: `custom_${created.id}`,
+      name: created.name,
+      category: created.category,
+      address: created.address ?? "",
+      lat: created.lat,
+      lng: created.lng,
+      distance: "",
+      waitTime: 0,
+      waitingPeople: 0,
+      crowdLevel: "low",
+      lastUpdated: "방금 전",
+      isFavorite: false,
+    }
+    setCustomPlaces((prev) => [newPlace, ...prev])
+    toast.success("장소가 등록됐어요! 포인트는 검토 후 지급됩니다 🎉")
+  }
+
+  const fetchCustomPlaces = async (lat: number, lng: number, radius: number) => {
+    try {
+      const res = await fetch(`/api/custom-places?lat=${lat}&lng=${lng}&radius=${radius}`)
+      if (!res.ok) return
+      const data = await res.json()
+      const mapped: Place[] = data.map((p: any) => ({
+        id: `custom_${p.id}`,
+        name: p.name,
+        category: p.category,
+        address: p.address ?? "",
+        lat: p.lat,
+        lng: p.lng,
+        distance: p.distance ? `${p.distance}m` : "",
+        waitTime: 0,
+        waitingPeople: 0,
+        crowdLevel: "low" as const,
+        lastUpdated: "정보 없음",
+        isFavorite: false,
+      }))
+      setCustomPlaces(mapped)
+    } catch {}
   }
 
   const categoryMap: Record<string, string | string[]> = {
@@ -872,13 +937,14 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       </Button>
       )}
 
-      {/* 대기 정보 입력 버튼 */}
+      {/* 신규 장소 등록 버튼 */}
       <Button
         className="absolute right-4 bottom-[48%] z-10 rounded-full shadow-lg gap-2"
         onClick={handleAddNewPlace}
+        title="신규 장소 등록"
       >
         <Plus className="w-5 h-5" />
-        <span className="hidden sm:inline">정보 등록</span>
+        <span className="hidden sm:inline">신규 등록</span>
       </Button>
 
       {/* 하단 장소 목록 시트 */}
@@ -893,7 +959,26 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
             </span>
           </div>
 
-          {places.length === 0 ? (
+          {/* 사용자 등록 신규 장소 (상단 표시) */}
+          {customPlaces.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-primary flex items-center gap-1">
+                <Plus className="w-3 h-3" /> 사용자 등록 장소
+              </p>
+              {customPlaces.map((place) => (
+                <PlaceCard
+                  key={place.id}
+                  place={place}
+                  onSelect={handlePlaceSelect}
+                  onFavorite={handleFavorite}
+                  onHistory={handleShowHistory}
+                />
+              ))}
+              <div className="border-t border-border pt-3" />
+            </div>
+          )}
+
+          {places.length === 0 && customPlaces.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                 <Navigation className="w-8 h-8 text-muted-foreground" />
@@ -925,6 +1010,17 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           setEditingPlace(null)
         }}
         onSubmit={handleWaitTimeSubmit}
+      />
+
+      {/* 신규 장소 등록 모달 */}
+      <NewPlaceModal
+        isOpen={isNewPlaceModalOpen}
+        onClose={() => setIsNewPlaceModalOpen(false)}
+        defaultLat={actualMapCenter?.lat ?? mapCenter?.lat}
+        defaultLng={actualMapCenter?.lng ?? mapCenter?.lng}
+        userLat={userLocation?.lat}
+        userLng={userLocation?.lng}
+        onSubmit={handleNewPlaceSubmit}
       />
 
       {/* 햄버거 메뉴 */}
