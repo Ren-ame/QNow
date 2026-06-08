@@ -258,6 +258,8 @@ export function MenuSheet({
               )
             })}
 
+            <div className="h-px bg-border mx-5 my-2" />
+
             {/* 즐겨찾기 / 내가 등록한 정보 */}
             {[
               {
