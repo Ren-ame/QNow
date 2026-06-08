@@ -405,6 +405,11 @@ flowchart TD
 - **접근성 경고 수정** — Radix UI `DialogContent`의 `Missing Description` 경고 해소
   - `command.tsx`: `DialogHeader`(Title+Description)를 `DialogContent` 밖에서 안으로 이동
   - `WaitTimeHistoryModal`: `DialogDescription sr-only` 추가
+- **신규 등록 장소 섹션 토글 버튼 추가** — 주변 대기 정보 헤더에 "신규" pill 버튼 추가. ON 시 24시간 이내 등록 장소를 상단에 별도 표시, OFF 시 전체 커스텀 장소를 거리순 일반 목록에 편입. 커스텀 장소가 없을 때는 버튼 미노출.
+- **커스텀 장소 삭제 기능 추가** — `DELETE /api/custom-places?id=` 엔드포인트 추가. `PlaceCard`에 `onDelete` prop 추가해 휴지통 아이콘 버튼 렌더링.
+  - dev 환경(`NODE_ENV !== "production"`)에서는 항상 노출
+  - 프로덕션에서는 `NEXT_PUBLIC_ADMIN_EMAILS` 환경변수에 등록된 어드민 이메일로 로그인 시 노출
+  - 신규 섹션 및 일반 목록 편입 후에도 삭제 가능 (Kakao API 장소에는 버튼 없음)
 
 ### 2026-06-05
 
