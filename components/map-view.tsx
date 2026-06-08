@@ -275,19 +275,7 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
       const content = document.createElement("div")
       content.className = "kakao-marker-wrapper"
 
-      // 마커 공통 HTML (커스텀 장소는 ★ 뱃지 추가)
-      const badgeHtml = isCustom ? `
-        <div style="
-          position: absolute;
-          top: -4px; right: -4px;
-          width: 16px; height: 16px;
-          background: #7c3aed;
-          border: 2px solid white;
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 9px; line-height: 1;
-        ">★</div>
-      ` : ""
+      const borderColor = isCustom ? "#7c3aed" : "white"
 
       content.innerHTML = `
         <div style="
@@ -298,24 +286,21 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
           transform: ${isSelected ? "scale(1.2)" : "scale(1)"};
           transition: transform 0.2s ease;
         ">
-          <div style="position: relative;">
-            <div style="
-              width: ${isSelected ? "48px" : "40px"};
-              height: ${isSelected ? "48px" : "40px"};
-              background-color: ${color};
-              border: 3px solid white;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-              font-size: ${isSelected ? "14px" : "12px"};
-              font-weight: 700;
-              color: white;
-            ">
-              ${place.waitingPeople > 99 ? "99+" : place.waitingPeople}
-            </div>
-            ${badgeHtml}
+          <div style="
+            width: ${isSelected ? "48px" : "40px"};
+            height: ${isSelected ? "48px" : "40px"};
+            background-color: ${color};
+            border: 3px solid ${borderColor};
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            font-size: ${isSelected ? "14px" : "12px"};
+            font-weight: 700;
+            color: white;
+          ">
+            ${place.waitingPeople > 99 ? "99+" : place.waitingPeople}
           </div>
           ${isSelected ? `
             <div style="
