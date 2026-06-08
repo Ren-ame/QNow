@@ -95,3 +95,35 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(data, { status: 201 })
 }
+
+/** DELETE /api/custom-places?id=
+ *  장소 삭제 (로그인 필수, dev only 용도) */
+export async function DELETE(req: NextRequest) {
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader) {
+    return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 })
+  }
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(
+    authHeader.replace("Bearer ", "")
+  )
+  if (authError || !user) {
+    return NextResponse.json({ error: "인증 실패" }, { status: 401 })
+  }
+
+  const id = new URL(req.url).searchParams.get("id")
+  if (!id) {
+    return NextResponse.json({ error: "id 파라미터가 필요합니다" }, { status: 400 })
+  }
+
+  const serviceClient = createServiceClient()
+  const { error } = await serviceClient
+    .from("custom_places")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id) // 본인 등록 장소만 삭제
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true })
+}

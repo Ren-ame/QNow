@@ -759,6 +759,28 @@ export default function WaitingNowPage() {
     } catch {}
   }
 
+  /** [dev only] 신규 등록 장소 삭제 */
+  const handleDeleteCustomPlace = async (place: Place) => {
+    if (!confirm(`"${place.name}" 장소를 삭제할까요?`)) return
+    const rawId = place.id.replace("custom_", "")
+    const token = session?.access_token
+    if (!token) { alert("로그인이 필요합니다"); return }
+    try {
+      const res = await fetch(`/api/custom-places?id=${rawId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(`삭제 실패: ${err.error}`)
+        return
+      }
+      setCustomPlaces((prev) => prev.filter((p) => p.id !== place.id))
+    } catch {
+      alert("삭제 중 오류가 발생했습니다")
+    }
+  }
+
   const categoryMap: Record<string, string | string[]> = {
     subway: "SW8",
     cafe: "카페",
@@ -1084,6 +1106,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                         onSelect={handlePlaceSelect}
                         onFavorite={handleFavorite}
                         onHistory={handleShowHistory}
+                        onDelete={isDeveloperMode ? handleDeleteCustomPlace : undefined}
                       />
                     ))}
                     <div className="border-t border-border pt-3" />
@@ -1105,6 +1128,11 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
                       onSelect={handlePlaceSelect}
                       onFavorite={handleFavorite}
                       onHistory={handleShowHistory}
+                      onDelete={
+                        isDeveloperMode && place.id.startsWith("custom_")
+                          ? handleDeleteCustomPlace
+                          : undefined
+                      }
                     />
                   ))
                 )}

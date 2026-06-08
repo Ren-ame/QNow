@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, Users, MapPin, Star, BarChart2 } from "lucide-react"
+import { Clock, Users, MapPin, Star, BarChart2, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -26,6 +26,7 @@ interface PlaceCardProps {
   onSelect?: (place: Place) => void
   onFavorite?: (place: Place) => void
   onHistory?: (place: Place) => void
+  onDelete?: (place: Place) => void
 }
 
 const crowdLevelConfig = {
@@ -35,7 +36,7 @@ const crowdLevelConfig = {
   critical: { label: "매우혼잡", color: "bg-red-500", textColor: "text-red-600" },
 }
 
-export function PlaceCard({ place, onSelect, onFavorite, onHistory }: PlaceCardProps) {
+export function PlaceCard({ place, onSelect, onFavorite, onHistory, onDelete }: PlaceCardProps) {
   const crowdConfig = crowdLevelConfig[place.crowdLevel]
 
   return (
@@ -56,6 +57,18 @@ export function PlaceCard({ place, onSelect, onFavorite, onHistory }: PlaceCardP
           </div>
         </div>
         <div className="flex items-center gap-0.5">
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(place)
+              }}
+              className="p-1 hover:bg-red-50 rounded-full transition-colors"
+              title="장소 삭제 (dev)"
+            >
+              <Trash2 className="w-4 h-4 text-red-400" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation()
