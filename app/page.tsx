@@ -163,6 +163,7 @@ export default function WaitingNowPage() {
   const [isNewPlaceModalOpen, setIsNewPlaceModalOpen] = useState(false)
   const [isLocationPickerMode, setIsLocationPickerMode] = useState(false)
   const [customPlaces, setCustomPlaces] = useState<Place[]>([])
+  const [showCustomPlaces, setShowCustomPlaces] = useState(true)
   // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
   const searchIdRef = useRef(0)
   const originalOrderRef = useRef<string[]>([])
@@ -1031,22 +1032,39 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
             <h2 className="text-lg font-bold text-foreground">
               주변 대기 정보
             </h2>
-            <span className="text-sm text-muted-foreground">
-              {places.length}개 장소
-            </span>
+            <div className="flex items-center gap-2">
+              {customPlaces.length > 0 && (
+                <button
+                  onClick={() => setShowCustomPlaces((v) => !v)}
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                    showCustomPlaces
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Plus className="w-3 h-3" />
+                  신규
+                </button>
+              )}
+              <span className="text-sm text-muted-foreground">
+                {places.length}개 장소
+              </span>
+            </div>
           </div>
 
           {/* 24시간 이내 신규 등록 장소: 상단 고정 / 이후: 거리순 일반 목록 편입 */}
           {(() => {
             const HIGHLIGHT_MS = 24 * 60 * 60 * 1000 // 24시간
             const now = Date.now()
-            const newCustom = customPlaces.filter(
-              (p) => p.registeredAt && now - new Date(p.registeredAt).getTime() < HIGHLIGHT_MS
-            )
+            const newCustom = showCustomPlaces
+              ? customPlaces.filter(
+                  (p) => p.registeredAt && now - new Date(p.registeredAt).getTime() < HIGHLIGHT_MS
+                )
+              : []
             const oldCustom = customPlaces.filter(
-              (p) => !p.registeredAt || now - new Date(p.registeredAt).getTime() >= HIGHLIGHT_MS
+              (p) => !showCustomPlaces || !p.registeredAt || now - new Date(p.registeredAt).getTime() >= HIGHLIGHT_MS
             )
-            // 24시간 지난 커스텀 장소는 일반 목록에 거리순으로 편입
+            // 24시간 지난 커스텀 장소(또는 토글 OFF 시 전체)는 일반 목록에 거리순으로 편입
             const distNum = (d: string) => parseInt(d.replace("m", "")) || Number.MAX_SAFE_INTEGER
             const allPlaces = [...places, ...oldCustom].sort(
               (a, b) => distNum(a.distance) - distNum(b.distance)
