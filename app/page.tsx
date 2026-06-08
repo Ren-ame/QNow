@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Plus, Navigation, SlidersHorizontal, Layers } from "lucide-react"
+import { Plus, Navigation, SlidersHorizontal, Layers, MapPin, Check, X } from "lucide-react"
 import { SearchBar, type SearchSuggestion } from "@/components/search-bar"
 import { MapView } from "@/components/map-view"
 import { FilterButtons, type FilterState } from "@/components/filter-buttons"
@@ -161,6 +161,7 @@ export default function WaitingNowPage() {
   const [showRadiusPanel, setShowRadiusPanel] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [isNewPlaceModalOpen, setIsNewPlaceModalOpen] = useState(false)
+  const [isLocationPickerMode, setIsLocationPickerMode] = useState(false)
   const [customPlaces, setCustomPlaces] = useState<Place[]>([])
   // 2026-05-26: 구 검색의 비동기 enrichment가 신 검색 결과를 덮어쓰는 것을 방지
   const searchIdRef = useRef(0)
@@ -684,7 +685,17 @@ export default function WaitingNowPage() {
       toast.error("신규 장소 등록은 로그인이 필요합니다")
       return
     }
+    // 위치 선택 모드 진입 — 지도를 움직여 위치 확정 후 등록 폼 오픈
+    setIsLocationPickerMode(true)
+  }
+
+  const handleLocationConfirm = () => {
+    setIsLocationPickerMode(false)
     setIsNewPlaceModalOpen(true)
+  }
+
+  const handleLocationCancel = () => {
+    setIsLocationPickerMode(false)
   }
 
   const handleNewPlaceSubmit = async (data: NewPlaceData) => {
@@ -937,7 +948,69 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       </Button>
       )}
 
-      {/* 신규 장소 등록 버튼 */}
+      {/* 위치 선택 모드 오버레이 */}
+      {isLocationPickerMode && (
+        <>
+          {/* 중앙 핀 마커 (pointer-events-none: 지도 터치/드래그 방해 안 함) */}
+          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+            <div className="flex flex-col items-center" style={{ transform: "translateY(-50%)" }}>
+              {/* 핀 몸통 */}
+              <div className="bg-primary rounded-full p-2.5 shadow-xl border-2 border-white">
+                <MapPin className="w-7 h-7 text-primary-foreground fill-primary-foreground" />
+              </div>
+              {/* 핀 꼬리 */}
+              <div className="w-0.5 h-5 bg-primary" />
+              {/* 그림자 타원 */}
+              <div className="w-4 h-1.5 bg-black/25 rounded-full blur-[2px]" />
+            </div>
+          </div>
+
+          {/* 상단 안내 배너 */}
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <div className="bg-background/90 backdrop-blur-sm border border-border rounded-full px-4 py-2 shadow-lg">
+              <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                지도를 움직여 위치를 선택하세요
+              </p>
+            </div>
+          </div>
+
+          {/* 하단 확인 패널 */}
+          <div className="absolute bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-2xl px-4 pt-4 pb-6 space-y-3">
+            <div>
+              <p className="text-xs text-muted-foreground">선택된 위치</p>
+              <p className="text-sm font-mono text-foreground mt-0.5">
+                {(actualMapCenter ?? mapCenter) ? (
+                  <>
+                    {(actualMapCenter?.lat ?? mapCenter?.lat)?.toFixed(5)}°N&nbsp;
+                    {(actualMapCenter?.lng ?? mapCenter?.lng)?.toFixed(5)}°E
+                  </>
+                ) : "위치를 불러오는 중..."}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleLocationCancel}
+                className="flex-1 gap-2"
+              >
+                <X className="w-4 h-4" />
+                취소
+              </Button>
+              <Button
+                onClick={handleLocationConfirm}
+                className="flex-1 gap-2"
+                disabled={!(actualMapCenter ?? mapCenter)}
+              >
+                <Check className="w-4 h-4" />
+                이 위치로 선택
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 신규 장소 등록 버튼 (위치 선택 모드일 때 숨김) */}
+      {!isLocationPickerMode && (
       <Button
         className="absolute right-4 bottom-[48%] z-10 rounded-full shadow-lg gap-2"
         onClick={handleAddNewPlace}
@@ -946,6 +1019,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         <Plus className="w-5 h-5" />
         <span className="hidden sm:inline">신규 등록</span>
       </Button>
+      )}
 
       {/* 하단 장소 목록 시트 */}
       <BottomSheet>
