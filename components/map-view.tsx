@@ -275,63 +275,30 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
       const content = document.createElement("div")
       content.className = "kakao-marker-wrapper"
 
-      if (isCustom) {
-        // 커스텀(사용자 등록) 장소 마커 — 별 아이콘 + 보라색
-        content.innerHTML = `
-          <div style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            cursor: pointer;
-            transform: ${isSelected ? "scale(1.2)" : "scale(1)"};
-            transition: transform 0.2s ease;
-          ">
-            <div style="
-              width: ${isSelected ? "44px" : "36px"};
-              height: ${isSelected ? "44px" : "36px"};
-              background-color: #7c3aed;
-              border: 3px solid white;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 4px 12px rgba(124, 58, 237, 0.45);
-              font-size: ${isSelected ? "18px" : "15px"};
-            ">★</div>
-            <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid #7c3aed; margin-top: -1px;"></div>
-            ${isSelected ? `
-              <div style="
-                margin-top: 6px;
-                background: white;
-                padding: 8px 12px;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                white-space: nowrap;
-                border-left: 3px solid #7c3aed;
-              ">
-                <div style="font-size: 11px; font-weight: 600; color: #7c3aed; margin-bottom: 2px;">신규 등록 장소</div>
-                <div style="font-size: 13px; font-weight: 600; color: #1f2937;">${place.name}</div>
-                <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${place.category}</div>
-                ${place.waitTime > 0 ? `
-                  <div style="font-size: 11px; color: ${color}; margin-top: 2px;">
-                    대기 ${place.waitTime}분 · ${place.waitingPeople}명
-                  </div>
-                ` : `<div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">대기정보 없음</div>`}
-              </div>
-            ` : ""}
-          </div>
-        `
-      } else {
-        // 일반 장소 마커
-        content.innerHTML = `
-          <div style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            cursor: pointer;
-            transform: ${isSelected ? "scale(1.2)" : "scale(1)"};
-            transition: transform 0.2s ease;
-          ">
+      // 마커 공통 HTML (커스텀 장소는 ★ 뱃지 추가)
+      const badgeHtml = isCustom ? `
+        <div style="
+          position: absolute;
+          top: -4px; right: -4px;
+          width: 16px; height: 16px;
+          background: #7c3aed;
+          border: 2px solid white;
+          border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 9px; line-height: 1;
+        ">★</div>
+      ` : ""
+
+      content.innerHTML = `
+        <div style="
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          cursor: pointer;
+          transform: ${isSelected ? "scale(1.2)" : "scale(1)"};
+          transition: transform 0.2s ease;
+        ">
+          <div style="position: relative;">
             <div style="
               width: ${isSelected ? "48px" : "40px"};
               height: ${isSelected ? "48px" : "40px"};
@@ -348,24 +315,27 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
             ">
               ${place.waitingPeople > 99 ? "99+" : place.waitingPeople}
             </div>
-            ${isSelected ? `
-              <div style="
-                margin-top: 8px;
-                background: white;
-                padding: 8px 12px;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-                white-space: nowrap;
-              ">
-                <div style="font-size: 13px; font-weight: 600; color: #1f2937;">${place.name}</div>
-                <div style="font-size: 11px; color: ${color}; margin-top: 2px;">
-                  대기 ${place.waitTime}분 · ${place.waitingPeople}명 · ${crowdTextMap[place.crowdLevel]}
-                </div>
-              </div>
-            ` : ""}
+            ${badgeHtml}
           </div>
-        `
-      }
+          ${isSelected ? `
+            <div style="
+              margin-top: 8px;
+              background: white;
+              padding: 8px 12px;
+              border-radius: 8px;
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+              white-space: nowrap;
+              ${isCustom ? "border-left: 3px solid #7c3aed;" : ""}
+            ">
+              ${isCustom ? `<div style="font-size: 11px; font-weight: 600; color: #7c3aed; margin-bottom: 2px;">★ 신규 등록 장소</div>` : ""}
+              <div style="font-size: 13px; font-weight: 600; color: #1f2937;">${place.name}</div>
+              <div style="font-size: 11px; color: ${color}; margin-top: 2px;">
+                대기 ${place.waitTime}분 · ${place.waitingPeople}명 · ${crowdTextMap[place.crowdLevel]}
+              </div>
+            </div>
+          ` : ""}
+        </div>
+      `
 
       content.addEventListener("click", (event) => {
         event.stopPropagation()
