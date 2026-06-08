@@ -19,6 +19,7 @@ export interface Place {
   lastUpdated: string
   isFavorite?: boolean
   registeredAt?: string  // custom_places 등록 시각 (ISO string) — 신규 하이라이트 판별용
+  isCustom?: boolean     // 사용자 직접 등록 장소 여부 — 지도 마커 구분용
 }
 
 interface PlaceCardProps {

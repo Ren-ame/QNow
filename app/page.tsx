@@ -759,6 +759,7 @@ export default function WaitingNowPage() {
         lastUpdated: "정보 없음",
         isFavorite: false,
         registeredAt: p.created_at,
+        isCustom: true,
       }))
 
       // 커스텀 장소 대기정보 병합 (wait_times 테이블에서 조회)
@@ -945,7 +946,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       {/* 지도 영역 */}
       <div className="absolute inset-0 z-0">
         <MapView
-          places={places}
+          places={[...places, ...customPlaces]}
           selectedPlace={selectedPlace}
           onMarkerClick={handleMarkerClick}
           onMapBackgroundClick={handleDeselect}
