@@ -18,6 +18,7 @@ node_modules
 
 # Build artifacts
 *.tsbuildinfo
+next-env.d.ts
 
 # Office temp lock files
 ~$*
