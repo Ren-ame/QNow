@@ -120,15 +120,33 @@ export async function POST(req: NextRequest) {
   }
 
   // 로그인 유저 + 100m 이내일 때만 포인트 적립 (+10P)
+  // 주의: user 좌표는 클라이언트가 보내므로 위조 가능 → 아래 중복/상한으로 파밍 피해 제한
   const POINT_RADIUS_M = 100
+  const DAILY_AWARD_LIMIT = 10               // 24시간 내 최대 적립 횟수 (=100P)
+  const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000 // 같은 장소는 24시간 내 1회만 적립
+
   const withinRange =
     user_lat != null && user_lng != null &&
     place_lat != null && place_lng != null &&
     haversineMeters(user_lat, user_lng, place_lat, place_lng) <= POINT_RADIUS_M
 
-  if (authHeader && user_id) {
-    if (withinRange) {
-      const serviceClient = createServiceClient()
+  let pointEarned = false
+  if (authHeader && user_id && withinRange) {
+    const serviceClient = createServiceClient()
+    const since = new Date(Date.now() - DEDUP_WINDOW_MS).toISOString()
+
+    // 최근 24시간 적립 내역 1회 조회 → 중복(같은 장소)·일일 상한 동시 판정
+    const { data: recentEarns } = await serviceClient
+      .from("point_transactions")
+      .select("reference_id")
+      .eq("user_id", user_id)
+      .eq("type", "earn")
+      .gte("created_at", since)
+
+    const alreadyForPlace = recentEarns?.some((r) => r.reference_id === place_id) ?? false
+    const reachedDailyCap = (recentEarns?.length ?? 0) >= DAILY_AWARD_LIMIT
+
+    if (!alreadyForPlace && !reachedDailyCap) {
       const { error: pointError } = await serviceClient.from("point_transactions").insert({
         user_id,
         type: "earn",
@@ -137,8 +155,9 @@ export async function POST(req: NextRequest) {
         reference_id: place_id,
       })
       if (pointError) console.error("[wait-times POST] 포인트 적립 실패:", pointError)
+      else pointEarned = true
     }
   }
 
-  return NextResponse.json({ success: true, point_earned: withinRange && !!user_id })
+  return NextResponse.json({ success: true, point_earned: pointEarned })
 }
