@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient, createServiceClient } from "@/lib/supabase"
+import { isAdminEmail } from "@/lib/admin"
 
 // 조회용 anon 클라이언트 (RLS SELECT 정책 적용)
 const supabase = createServerClient()
@@ -107,11 +108,8 @@ export async function DELETE(req: NextRequest) {
   }
 
   // 어드민 또는 dev 환경에서만 삭제 가능
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim())
-  const isAdmin = !!user.email && adminEmails.includes(user.email)
   const isDev = process.env.NODE_ENV !== "production"
-
-  if (!isAdmin && !isDev) {
+  if (!isAdminEmail(user.email) && !isDev) {
     return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 })
   }
 

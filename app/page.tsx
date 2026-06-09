@@ -151,8 +151,8 @@ export default function WaitingNowPage() {
   const [isMyPageOpen, setIsMyPageOpen] = useState(false)
   const [savedFavorites, setSavedFavorites] = useState<Record<string, Place>>({})
   const { user, session, isLoading: isAuthLoading, signInWithKakao, switchKakaoAccount, signOut } = useAuth()
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim())
-  const isAdmin = !!user?.email && adminEmails.includes(user.email)
+  // 어드민 여부는 서버에서 판정(/api/me) — 어드민 이메일을 클라이언트에 노출하지 않음
+  const [isAdmin, setIsAdmin] = useState(false)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
   const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
@@ -174,7 +174,16 @@ export default function WaitingNowPage() {
   const searchIdRef = useRef(0)
   const originalOrderRef = useRef<string[]>([])
 
-  // 로그인 시 DB 즐겨찾기 불러오기 + localStorage 마이그레이션
+  // 로그인 시 서버에서 어드민 여부 조회
+  useEffect(() => {
+    if (!session) { setIsAdmin(false); return }
+    fetch("/api/me", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((res) => res.json())
+      .then((d) => setIsAdmin(!!d.isAdmin))
+      .catch(() => setIsAdmin(false))
+  }, [session])
+
+  // 어드민이면 미처리 신고 수 조회
   useEffect(() => {
     if (isAdmin && session) fetchPendingReportCount()
   }, [isAdmin, session])

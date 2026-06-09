@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient, createServiceClient } from "@/lib/supabase"
+import { isAdminEmail } from "@/lib/admin"
 import { Resend } from "resend"
 
 const supabase = createServerClient()
@@ -117,8 +118,7 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser(
     authHeader.replace("Bearer ", "")
   )
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map(e => e.trim())
-  if (!user?.email || !adminEmails.includes(user.email)) {
+  if (!isAdminEmail(user?.email)) {
     return NextResponse.json({ count: 0 })
   }
 
@@ -150,8 +150,7 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser(
     authHeader.replace("Bearer ", "")
   )
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map(e => e.trim())
-  if (!user?.email || !adminEmails.includes(user.email)) {
+  if (!isAdminEmail(user?.email)) {
     return NextResponse.json({ error: "권한 없음" }, { status: 403 })
   }
 
