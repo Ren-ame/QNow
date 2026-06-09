@@ -387,6 +387,17 @@ flowchart TD
 
 ### 2026-06-09
 
+- **호스팅 이전: Vercel → Netlify** — Vercel 무료(Hobby) 플랜이 상업적 사용(애드센스 광고)을 금지해 약관 위반 소지가 있어 Netlify로 이전.
+  - `netlify.toml` 추가 (`@netlify/plugin-nextjs` 런타임으로 API 라우트/SSR을 Netlify Functions로 처리)
+  - Vercel 전용 `@vercel/analytics` 의존성 제거
+  - Netlify 대시보드에 환경변수 8종 등록, 도메인 `q-now.netlify.app`로 설정
+  - Supabase Auth URL Configuration의 Site URL·Redirect URLs를 새 도메인으로 변경
+  - 기존 Vercel 프로젝트(`q-now`, `q_now`) 삭제로 약관 위반 상태 해소
+  - 배포 검증: 메인·`ads.txt`·API(`/api/wait-times`)·`auth/callback` 모두 HTTP 200
+- **구글 애드센스 광고 연동** — 메뉴 하단 배너에 애드센스 광고 적용.
+  - `next/script`로 애드센스 로더 스크립트 로드, `AdBanner` 컴포넌트(`ins` 렌더 + `adsbygoogle.push`, 마운트당 1회 가드)
+  - 반응형 auto 광고가 세로 확장돼 메뉴 레이아웃을 깨뜨리던 문제 → 고정 높이(90px)+overflow-hidden, 가로형 고정 광고로 변경
+  - `public/ads.txt` 추가 (`pub-9580039077255456` 사이트 소유권 확인용)
 - **카카오 계정 전환 기능 추가** — 앱 로그아웃 후 다른 카카오 계정으로 전환 불가하던 문제 해결.
   - 원인: 앱(Supabase) 세션과 별개로 카카오 SSO 세션(kakao.com 쿠키)이 남아, 재로그인 시 같은 계정으로 자동 통과됨
   - 일반 로그인은 기존대로 카카오 간편로그인(기억하기)을 활용해 빠른 재로그인 유지
