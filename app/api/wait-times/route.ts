@@ -9,20 +9,10 @@
  * - sample_count 필드 추가 */
 
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 import { iqrMean, mode } from "@/lib/stats"
-import { createUserClient, createServiceClient } from "@/lib/supabase"
+import { createServerClient, createServiceClient } from "@/lib/supabase"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }
-)
+const supabase = createServerClient()
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

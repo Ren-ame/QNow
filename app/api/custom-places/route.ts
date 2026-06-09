@@ -1,13 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-import { createServiceClient } from "@/lib/supabase"
+import { createServerClient, createServiceClient } from "@/lib/supabase"
 
 // 조회용 anon 클라이언트 (RLS SELECT 정책 적용)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } }
-)
+const supabase = createServerClient()
 
 /** GET /api/custom-places?lat=&lng=&radius=
  *  현재 위치 기준 반경 내 사용자 등록 장소 조회 */

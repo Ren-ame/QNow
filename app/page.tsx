@@ -761,7 +761,7 @@ export default function WaitingNowPage() {
         address: p.address ?? "",
         lat: p.lat,
         lng: p.lng,
-        distance: p.distance ? `${p.distance}m` : "",
+        distance: p.distance != null ? `${p.distance}m` : "",
         waitTime: 0,
         waitingPeople: 0,
         crowdLevel: "low" as const,
@@ -801,7 +801,7 @@ export default function WaitingNowPage() {
     } catch {}
   }
 
-  /** [dev only] 신규 등록 장소 삭제 */
+  /** 신규 등록 장소 삭제 (어드민/dev 전용 — 서버에서 권한 검증) */
   const handleDeleteCustomPlace = async (place: Place) => {
     if (!confirm(`"${place.name}" 장소를 삭제할까요?`)) return
     const rawId = place.id.replace("custom_", "")

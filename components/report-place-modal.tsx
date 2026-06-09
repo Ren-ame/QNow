@@ -28,20 +28,25 @@ export function ReportPlaceModal({ isOpen, onClose, placeName, onSubmit }: Repor
   const [detail, setDetail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDone, setIsDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleClose = () => {
     setSelectedReason(null)
     setDetail("")
     setIsDone(false)
+    setError(null)
     onClose()
   }
 
   const handleSubmit = async () => {
     if (!selectedReason) return
     setIsSubmitting(true)
+    setError(null)
     try {
       await onSubmit(selectedReason, detail)
       setIsDone(true)
+    } catch {
+      setError("신고 접수에 실패했습니다. 잠시 후 다시 시도해주세요.")
     } finally {
       setIsSubmitting(false)
     }
@@ -99,6 +104,10 @@ export function ReportPlaceModal({ isOpen, onClose, placeName, onSubmit }: Repor
                 rows={3}
               />
             </div>
+
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
 
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1" onClick={handleClose}>취소</Button>

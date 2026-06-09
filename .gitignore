@@ -14,3 +14,10 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
+.vercel
+
+# Build artifacts
+*.tsbuildinfo
+
+# Office temp lock files
+~$*
