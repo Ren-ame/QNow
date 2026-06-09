@@ -49,24 +49,22 @@ export function useAuth(): AuthState {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 일반 로그인 — 카카오 간편로그인(기억하기) 그대로 활용 → 빠른 재로그인
-  const signInWithKakao = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "kakao",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    })
-  }
-
-  // 계정 전환 — 저장된 정보 무시하고 카카오 계정 선택 화면 강제 노출
-  const switchKakaoAccount = async () => {
+  // prompt 지정 시 카카오 계정 선택 화면 강제 (저장된 간편로그인 무시)
+  const kakaoSignIn = async (prompt?: string) => {
     await supabase.auth.signInWithOAuth({
       provider: "kakao",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: { prompt: "select_account" },
+        ...(prompt ? { queryParams: { prompt } } : {}),
       },
     })
   }
+
+  // 일반 로그인 — 카카오 간편로그인(기억하기) 그대로 활용 → 빠른 재로그인
+  const signInWithKakao = () => kakaoSignIn()
+
+  // 계정 전환 — 계정 선택 화면 강제 노출
+  const switchKakaoAccount = () => kakaoSignIn("select_account")
 
   const signOut = async () => {
     await supabase.auth.signOut()

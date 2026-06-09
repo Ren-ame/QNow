@@ -17,6 +17,7 @@ const ALLOWED_REASONS = [
 ]
 
 // 입력 길이 제한
+const MAX_PLACE_ID = 200
 const MAX_PLACE_NAME = 200
 const MAX_DETAIL = 1000
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "유효하지 않은 신고 사유입니다" }, { status: 400 })
   }
   // 길이 제한 (저장 어뷰징·DoS 방지)
-  if (place_name.length > MAX_PLACE_NAME || detail.length > MAX_DETAIL) {
+  if (place_id.length > MAX_PLACE_ID || place_name.length > MAX_PLACE_NAME || detail.length > MAX_DETAIL) {
     return NextResponse.json({ error: "입력이 너무 깁니다" }, { status: 400 })
   }
 

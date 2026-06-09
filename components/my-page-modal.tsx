@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { User, Star, ClipboardList, Clock, ChevronRight } from "lucide-react"
+import { User, ClipboardList, Clock, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import type { User as SupabaseUser, Session } from "@supabase/supabase-js"
 

@@ -108,7 +108,7 @@ export async function DELETE(req: NextRequest) {
 
   // 어드민 또는 dev 환경에서만 삭제 가능
   const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim())
-  const isAdmin = adminEmails.includes(user.email ?? "")
+  const isAdmin = !!user.email && adminEmails.includes(user.email)
   const isDev = process.env.NODE_ENV !== "production"
 
   if (!isAdmin && !isDev) {
