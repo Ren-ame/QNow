@@ -22,9 +22,6 @@ import { useAuth } from "@/hooks/use-auth"
 const FAVORITES_KEY = "qnow_favorites"
 const RADIUS_KEY = "qnow_search_radius"
 const DEFAULT_RADIUS = 5000
-// min=500, max=9500 → default 5000이 정중앙
-const RADIUS_MIN = 500
-const RADIUS_MAX = 9500
 
 function loadRadius(): number {
   if (typeof window === "undefined") return DEFAULT_RADIUS
@@ -154,7 +151,7 @@ export default function WaitingNowPage() {
   // 어드민 여부는 서버에서 판정(/api/me) — 어드민 이메일을 클라이언트에 노출하지 않음
   const [isAdmin, setIsAdmin] = useState(false)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
-  const [mapViewportCenter, setMapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
+  const [mapViewportCenter] = useState<{lat: number, lng: number} | null>(null)
   const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null)
   const [actualMapCenter, setActualMapCenter] = useState<{lat: number, lng: number} | null>(null)
   const [guideFocusTarget, setGuideFocusTarget] = useState<{lat: number, lng: number} | null>(null)

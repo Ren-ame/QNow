@@ -116,7 +116,7 @@ function escapeHtml(str: string): string {
 
 const centerGuideOffsetY = 200
 
-export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onSearchArea, onCenterChange, onMapCenterChange, resetZoomSignal }: MapViewProps) {
+export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onCenterChange, onMapCenterChange, resetZoomSignal }: MapViewProps) {
   const isDeveloperMode = process.env.NODE_ENV !== "production"
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<kakao.maps.Map | null>(null)
@@ -273,7 +273,7 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
     overlaysRef.current = []
 
     // 각 장소에 대한 커스텀 오버레이 생성
-    places.forEach((place, index) => {
+    places.forEach((place) => {
       const lat = place.lat ?? 37.4979
       const lng = place.lng ?? 127.0276
 
@@ -426,23 +426,6 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
     centerGuideDragRef.current = null
     setIsCenterGuideActive(false)
     centerGuideRef.current?.releasePointerCapture(event.pointerId)
-  }
-
-  // 현재 위치로 이동
-  const handleCurrentLocation = () => {
-    if (navigator.geolocation && mapInstanceRef.current) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude
-          const lng = position.coords.longitude
-          const moveLatLng = new window.kakao.maps.LatLng(lat, lng)
-          mapInstanceRef.current?.setCenter(moveLatLng)
-        },
-        () => {
-          alert("현재 위치를 가져올 수 없습니다.")
-        }
-      )
-    }
   }
 
   if (mapError) {
