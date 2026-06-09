@@ -103,6 +103,17 @@ const crowdTextMap = {
   critical: "매우혼잡",
 }
 
+/** HTML 특수문자 이스케이프 — 마커 innerHTML 인젝션(XSS) 방지
+ *  커스텀 장소명은 사용자 입력이므로 반드시 이스케이프 필요 */
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
 const centerGuideOffsetY = 200
 
 export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onSearchArea, onCenterChange, onMapCenterChange, resetZoomSignal }: MapViewProps) {
@@ -313,7 +324,7 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
               ${isCustom ? "border-left: 3px solid #7c3aed;" : ""}
             ">
               ${isCustom ? `<div style="font-size: 11px; font-weight: 600; color: #7c3aed; margin-bottom: 2px;">★ 신규 등록 장소</div>` : ""}
-              <div style="font-size: 13px; font-weight: 600; color: #1f2937;">${place.name}</div>
+              <div style="font-size: 13px; font-weight: 600; color: #1f2937;">${escapeHtml(place.name)}</div>
               <div style="font-size: 11px; color: ${color}; margin-top: 2px;">
                 대기 ${place.waitTime}분 · ${place.waitingPeople}명 · ${crowdTextMap[place.crowdLevel]}
               </div>
