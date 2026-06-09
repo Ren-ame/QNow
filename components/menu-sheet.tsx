@@ -351,7 +351,20 @@ export function MenuSheet({
             })}
           </nav>
 
-          <div className="px-5 py-4 border-t border-border shrink-0">
+          {/* 배너 광고 영역 */}
+          <div className="px-4 py-3 border-t border-border shrink-0">
+            <div className="w-full h-[60px] bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+              {/* TODO: 애드센스 코드로 교체
+              <ins className="adsbygoogle"
+                style={{ display: "block", width: "100%", height: "60px" }}
+                data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+                data-ad-slot="XXXXXXXXXX"
+                data-ad-format="horizontal" /> */}
+              <p className="text-xs text-muted-foreground/50 select-none">광고</p>
+            </div>
+          </div>
+
+          <div className="px-5 py-3 border-t border-border shrink-0">
             <p className="text-xs text-muted-foreground">ver 0.1.0 · QNow</p>
           </div>
         </div>
