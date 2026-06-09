@@ -120,10 +120,9 @@ export async function POST(req: NextRequest) {
   }
 
   // 로그인 유저 + 100m 이내일 때만 포인트 적립 (+10P)
-  // 주의: user 좌표는 클라이언트가 보내므로 위조 가능 → 아래 중복/상한으로 파밍 피해 제한
+  // 주의: user 좌표는 클라이언트가 보내므로 위조 가능 → 중복/상한으로 파밍 피해 제한
   const POINT_RADIUS_M = 100
-  const DAILY_AWARD_LIMIT = 10               // 24시간 내 최대 적립 횟수 (=100P)
-  const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000 // 같은 장소는 24시간 내 1회만 적립
+  const DAILY_AWARD_LIMIT = 10  // 24시간 내 최대 적립 횟수 (=100P)
 
   const withinRange =
     user_lat != null && user_lng != null &&
@@ -132,31 +131,16 @@ export async function POST(req: NextRequest) {
 
   let pointEarned = false
   if (authHeader && user_id && withinRange) {
+    // 중복(같은 장소 24h)·일일 상한 판정과 적립을 RPC에서 원자적으로 처리 (동시 요청 race 방지)
     const serviceClient = createServiceClient()
-    const since = new Date(Date.now() - DEDUP_WINDOW_MS).toISOString()
-
-    // 최근 24시간 적립 내역 1회 조회 → 중복(같은 장소)·일일 상한 동시 판정
-    const { data: recentEarns } = await serviceClient
-      .from("point_transactions")
-      .select("reference_id")
-      .eq("user_id", user_id)
-      .eq("type", "earn")
-      .gte("created_at", since)
-
-    const alreadyForPlace = recentEarns?.some((r) => r.reference_id === place_id) ?? false
-    const reachedDailyCap = (recentEarns?.length ?? 0) >= DAILY_AWARD_LIMIT
-
-    if (!alreadyForPlace && !reachedDailyCap) {
-      const { error: pointError } = await serviceClient.from("point_transactions").insert({
-        user_id,
-        type: "earn",
-        amount: 10,
-        description: `대기 정보 등록 - ${place_name ?? place_id}`,
-        reference_id: place_id,
-      })
-      if (pointError) console.error("[wait-times POST] 포인트 적립 실패:", pointError)
-      else pointEarned = true
-    }
+    const { data, error: pointError } = await serviceClient.rpc("award_wait_time_point", {
+      p_user_id: user_id,
+      p_place_id: place_id,
+      p_place_name: place_name ?? null,
+      p_daily_limit: DAILY_AWARD_LIMIT,
+    })
+    if (pointError) console.error("[wait-times POST] 포인트 적립 실패:", pointError)
+    else pointEarned = data === true
   }
 
   return NextResponse.json({ success: true, point_earned: pointEarned })
