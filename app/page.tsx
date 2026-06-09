@@ -150,7 +150,7 @@ export default function WaitingNowPage() {
   const [menuInitialView, setMenuInitialView] = useState<"main" | "favorites" | "my-registrations">("main")
   const [isMyPageOpen, setIsMyPageOpen] = useState(false)
   const [savedFavorites, setSavedFavorites] = useState<Record<string, Place>>({})
-  const { user, session, isLoading: isAuthLoading, signInWithKakao, signOut } = useAuth()
+  const { user, session, isLoading: isAuthLoading, signInWithKakao, switchKakaoAccount, signOut } = useAuth()
   const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim())
   const isAdmin = !!user?.email && adminEmails.includes(user.email)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
@@ -1262,6 +1262,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
         session={session}
         isAuthLoading={isAuthLoading}
         onSignIn={signInWithKakao}
+        onSwitchAccount={switchKakaoAccount}
         onSignOut={signOut}
         onOpenMyPage={() => setIsMyPageOpen(true)}
         initialView={menuInitialView}

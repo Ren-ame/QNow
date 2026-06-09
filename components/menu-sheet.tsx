@@ -22,6 +22,7 @@ interface MenuSheetProps {
   session: Session | null
   isAuthLoading: boolean
   onSignIn: () => void
+  onSwitchAccount: () => void
   onSignOut: () => void
   onOpenMyPage: () => void
   initialView?: View
@@ -71,7 +72,7 @@ function formatDate(iso: string) {
 
 export function MenuSheet({
   isOpen, onClose, favoritePlaces, onFavoriteSelect,
-  user, session, isAuthLoading, onSignIn, onSignOut, onOpenMyPage,
+  user, session, isAuthLoading, onSignIn, onSwitchAccount, onSignOut, onOpenMyPage,
   initialView = "main", isAdmin = false, pendingReportCount = 0,
 }: MenuSheetProps) {
   const [view, setView] = useState<View>(initialView)
@@ -184,17 +185,25 @@ export function MenuSheet({
                 </button>
               </div>
             ) : (
-              <button
-                onClick={onSignIn}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#FEE500] hover:bg-[#F5DC00] transition-colors text-[#191919] font-semibold text-sm"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path fillRule="evenodd" clipRule="evenodd"
-                    d="M9 1C4.582 1 1 3.896 1 7.455c0 2.282 1.518 4.285 3.81 5.432L3.9 16.2a.3.3 0 0 0 .447.322L8.1 14.07c.297.027.597.04.9.04 4.418 0 8-2.896 8-6.455C17 3.896 13.418 1 9 1z"
-                    fill="#191919"/>
-                </svg>
-                카카오 로그인
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={onSignIn}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#FEE500] hover:bg-[#F5DC00] transition-colors text-[#191919] font-semibold text-sm"
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path fillRule="evenodd" clipRule="evenodd"
+                      d="M9 1C4.582 1 1 3.896 1 7.455c0 2.282 1.518 4.285 3.81 5.432L3.9 16.2a.3.3 0 0 0 .447.322L8.1 14.07c.297.027.597.04.9.04 4.418 0 8-2.896 8-6.455C17 3.896 13.418 1 9 1z"
+                      fill="#191919"/>
+                  </svg>
+                  카카오 로그인
+                </button>
+                <button
+                  onClick={onSwitchAccount}
+                  className="w-full text-center text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                >
+                  다른 계정으로 로그인
+                </button>
+              </div>
             )}
           </div>
 
