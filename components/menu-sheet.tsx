@@ -361,10 +361,15 @@ export function MenuSheet({
             })}
           </nav>
 
-          {/* 배너 광고 영역 */}
+          {/* 배너 광고 영역 — 고정 높이로 가둬 메뉴 레이아웃 보호 */}
           <div className="px-4 py-3 border-t border-border shrink-0">
-            <div className="w-full min-h-[60px] overflow-hidden rounded-lg">
-              <AdBanner slot="2104377593" />
+            <div className="w-full h-[90px] overflow-hidden rounded-lg bg-muted">
+              <AdBanner
+                slot="2104377593"
+                format="horizontal"
+                responsive={false}
+                style={{ width: "100%", height: "90px" }}
+              />
             </div>
           </div>
 

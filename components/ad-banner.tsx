@@ -18,9 +18,11 @@ interface AdBannerProps {
   format?: string
   /** 전체 너비 반응형 (기본 true) */
   responsive?: boolean
+  /** ins 요소 인라인 스타일 (고정 높이 등) */
+  style?: React.CSSProperties
 }
 
-export function AdBanner({ slot, className, format = "auto", responsive = true }: AdBannerProps) {
+export function AdBanner({ slot, className, format = "auto", responsive = true, style }: AdBannerProps) {
   // 마운트당 1회만 push (StrictMode 중복 렌더 / 재마운트 시 중복 광고 요청 방지)
   const pushed = useRef(false)
 
@@ -38,7 +40,7 @@ export function AdBanner({ slot, className, format = "auto", responsive = true }
   return (
     <ins
       className={`adsbygoogle ${className ?? ""}`}
-      style={{ display: "block" }}
+      style={{ display: "block", ...style }}
       data-ad-client={AD_CLIENT}
       data-ad-slot={slot}
       data-ad-format={format}
