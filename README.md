@@ -387,6 +387,10 @@ flowchart TD
 
 ### 2026-06-09
 
+- **3차 코드 리뷰 후속 수정**
+  - **포인트 적립 원자화** — 기존 조회-후-insert(check-then-act)는 동시 요청 시 중복 적립 race 존재. `award_wait_time_point` RPC(advisory lock)로 중복(같은 장소 24h)·일일 상한·적립을 한 트랜잭션에서 원자 처리. `service_role`만 EXECUTE 가능하게 제한해 유저 직접 호출 자가 지급도 차단. *(포인트가 상품 교환=현금성으로 전환되므로 무결성 필요)*
+  - **admin 이메일 폴백 제거** — `lib/admin.ts`에서 `NEXT_PUBLIC_ADMIN_EMAILS` 폴백 삭제, `ADMIN_EMAILS` 전용 + fail-closed. (운영에서 `NEXT_PUBLIC_ADMIN_EMAILS` 삭제·`ADMIN_EMAILS` 등록 완료)
+  - ⚠️ **남은 리스크**: 적립 좌표 위조(할 일 #7) — 현금성 도입 전 별도 설계 필요
 - **2차 코드 리뷰 후속 수정**
   - **지도 마커 XSS 차단** — `map-view`의 마커 팝업 `innerHTML`에 들어가던 `place.name`(커스텀 장소명=사용자 입력)을 `escapeHtml` 처리 → 저장형 XSS 차단
   - **ESLint 구성 추가** — `eslint`+`eslint-config-next` 설치 및 flat config 작성. `npm run lint`가 미설치로 실패하던 문제 해결. v0 코드베이스 baseline 규칙(의도적 패턴 off, 권고성 warn)으로 exit 0
@@ -550,3 +554,4 @@ flowchart TD
 | 4 | 커스텀 장소 대기정보 표시 | `wait_times` 테이블에서 커스텀 장소 ID 기준으로 조회해서 반영 | 완료 |
 | 5 | Supabase RLS 설정 | 전체 테이블 RLS 활성화 확인, `custom_places_delete` 정책 제거(어드민 전용) | 완료 |
 | 6 | Vercel 환경변수 설정 | `RESEND_API_KEY`, `RESEND_TO_EMAIL`, `NEXT_PUBLIC_ADMIN_EMAILS` 프로덕션 등록 | 완료 |
+| 7 | **포인트 적립 좌표 위조 취약점** | 적립 조건의 `user 좌표`·`place 좌표`가 모두 요청 body 기반 → 방문 없이 무한 적립 가능. **포인트 현금성(상품 교환) 도입 전 필수 해결.** 장소 좌표는 서버 조회(custom_places는 가능, 카카오는 좌표 미저장이 갭), 사용자 좌표는 검증 불가하므로 적립 캡 + 교환 단계 수동 검토/이상탐지 병행 필요 | 미해결 |
