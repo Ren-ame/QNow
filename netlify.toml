@@ -1,0 +1,9 @@
+# Netlify 배포 설정 — Next.js (App Router + API Routes)
+# @netlify/plugin-nextjs 런타임이 서버 기능(API 라우트, SSR)을 자동으로 Netlify Functions로 변환
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
