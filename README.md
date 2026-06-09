@@ -387,6 +387,11 @@ flowchart TD
 
 ### 2026-06-09
 
+- **2차 코드 리뷰 후속 수정**
+  - **지도 마커 XSS 차단** — `map-view`의 마커 팝업 `innerHTML`에 들어가던 `place.name`(커스텀 장소명=사용자 입력)을 `escapeHtml` 처리 → 저장형 XSS 차단
+  - **ESLint 구성 추가** — `eslint`+`eslint-config-next` 설치 및 flat config 작성. `npm run lint`가 미설치로 실패하던 문제 해결. v0 코드베이스 baseline 규칙(의도적 패턴 off, 권고성 warn)으로 exit 0
+  - **포인트 적립 어뷰징 방지** — 같은 장소 24시간 내 1회만, 24시간 내 최대 10회(=100P) 상한. `point_earned` 응답을 실제 지급 여부로 반환 (클라 좌표 위조는 불가피하므로 파밍 피해 제한이 목적)
+  - **어드민 판정 서버 이전** — `lib/admin.ts` 헬퍼 추가, 서버는 비공개 `ADMIN_EMAILS`(미설정 시 `NEXT_PUBLIC_ADMIN_EMAILS` 폴백) 사용. `/api/me`로 클라엔 `isAdmin`만 내려줘 어드민 이메일 클라이언트 노출 제거. *(운영 반영: Netlify에 `ADMIN_EMAILS` 추가 + `NEXT_PUBLIC_ADMIN_EMAILS` 삭제 필요)*
 - **호스팅 이전: Vercel → Netlify** — Vercel 무료(Hobby) 플랜이 상업적 사용(애드센스 광고)을 금지해 약관 위반 소지가 있어 Netlify로 이전.
   - `netlify.toml` 추가 (`@netlify/plugin-nextjs` 런타임으로 API 라우트/SSR을 Netlify Functions로 처리)
   - Vercel 전용 `@vercel/analytics` 의존성 제거
