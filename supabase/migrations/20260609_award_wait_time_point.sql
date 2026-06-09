@@ -11,7 +11,9 @@ CREATE OR REPLACE FUNCTION award_wait_time_point(
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
-SECURITY DEFINER
+-- SECURITY INVOKER: service_role(서버)로만 호출하고 service_role은 이미 풀 액세스라
+-- DEFINER 권한 상승이 불필요 → DEFINER hardening 표면을 원천 제거
+SECURITY INVOKER
 SET search_path = public
 AS $$
 DECLARE
