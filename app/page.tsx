@@ -175,13 +175,16 @@ export default function WaitingNowPage() {
   const originalOrderRef = useRef<string[]>([])
 
   // 로그인 시 서버에서 어드민 여부 조회
+  // 취소 가드: 응답이 늦게 도착해 이전 세션 결과로 isAdmin을 잘못 덮어쓰는 race 방지
   useEffect(() => {
     if (!session) { setIsAdmin(false); return }
+    let cancelled = false
     fetch("/api/me", { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then((res) => res.json())
-      .then((d) => setIsAdmin(!!d.isAdmin))
-      .catch(() => setIsAdmin(false))
-  }, [session])
+      .then((d) => { if (!cancelled) setIsAdmin(!!d.isAdmin) })
+      .catch(() => { if (!cancelled) setIsAdmin(false) })
+    return () => { cancelled = true }
+  }, [user?.id])
 
   // 어드민이면 미처리 신고 수 조회
   useEffect(() => {
