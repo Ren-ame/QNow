@@ -10,6 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { AdBanner } from "./ad-banner"
 import type { Place } from "./place-card"
 import type { User as SupabaseUser, Session } from "@supabase/supabase-js"
 
@@ -362,14 +363,8 @@ export function MenuSheet({
 
           {/* 배너 광고 영역 */}
           <div className="px-4 py-3 border-t border-border shrink-0">
-            <div className="w-full h-[60px] bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-              {/* TODO: 애드센스 코드로 교체
-              <ins className="adsbygoogle"
-                style={{ display: "block", width: "100%", height: "60px" }}
-                data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
-                data-ad-slot="XXXXXXXXXX"
-                data-ad-format="horizontal" /> */}
-              <p className="text-xs text-muted-foreground/50 select-none">광고</p>
+            <div className="w-full min-h-[60px] overflow-hidden rounded-lg">
+              <AdBanner slot="2104377593" />
             </div>
           </div>
 
