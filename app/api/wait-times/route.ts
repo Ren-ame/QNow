@@ -82,13 +82,32 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+const ALLOWED_CROWD_LEVELS = ["low", "medium", "high", "critical"]
+const MAX_WAIT_TIME = 600       // 분 (10시간)
+const MAX_WAITING_PEOPLE = 9999
+const MAX_PLACE_NAME = 200
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { place_id, place_name, wait_time, waiting_people, crowd_level,
           place_lat, place_lng, user_lat, user_lng } = body
 
-  if (!place_id) {
+  if (!place_id || typeof place_id !== "string") {
     return NextResponse.json({ error: "place_id는 필수입니다" }, { status: 400 })
+  }
+
+  // 입력 검증 (음수·비정상값·임의 crowd_level 차단)
+  if (!Number.isFinite(wait_time) || wait_time < 0 || wait_time > MAX_WAIT_TIME) {
+    return NextResponse.json({ error: "wait_time이 유효하지 않습니다" }, { status: 400 })
+  }
+  if (!Number.isFinite(waiting_people) || waiting_people < 0 || waiting_people > MAX_WAITING_PEOPLE) {
+    return NextResponse.json({ error: "waiting_people이 유효하지 않습니다" }, { status: 400 })
+  }
+  if (!ALLOWED_CROWD_LEVELS.includes(crowd_level)) {
+    return NextResponse.json({ error: "crowd_level이 유효하지 않습니다" }, { status: 400 })
+  }
+  if (typeof place_name === "string" && place_name.length > MAX_PLACE_NAME) {
+    return NextResponse.json({ error: "place_name이 너무 깁니다" }, { status: 400 })
   }
 
   // 로그인 유저면 user_id 추출
