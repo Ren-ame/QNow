@@ -385,6 +385,25 @@ flowchart TD
 - 모든 항목은 날짜(`YYYY-MM-DD`)를 붙여서 기록
 - 최신 날짜를 위에 추가
 
+### 2026-06-09
+
+- **커스텀 장소 삭제 권한 강화** — 일반 유저는 신고만 가능하고 삭제는 어드민/dev만 가능하도록 정책 확정.
+  - `DELETE /api/custom-places`에 어드민 이메일·dev 환경 체크 추가 (그 외 403 반환)
+  - Supabase `custom_places_delete` RLS 정책 제거 (직접 호출로도 일반 유저 삭제 불가, 어드민은 서비스 롤로만 삭제)
+- **메뉴 하단 배너 광고 영역 추가** — 버전 표시 위에 60px 광고 자리 확보. 구글 애드센스 코드 주석으로 준비(승인 후 ID만 교체).
+- **마이페이지 UI 정리** — 보유 포인트 카드 유지, 하단 통계를 3칸(총 제보·즐겨찾기·포인트)에서 2칸(제보·즐겨찾기)으로 축소해 포인트 중복 표시 제거.
+- **보안 점검 및 수정** (코드 리뷰)
+  - 신고 접수 시 관리자 이메일 본문에 사용자 입력값(`place_name·reason·detail·user_id`)을 HTML 이스케이프 처리 → 이메일 HTML 인젝션 차단
+  - `POST /api/place-reports`: 신고 사유 서버측 허용 목록 검증(클라이언트 우회 방지), `place_name`(200자)·`detail`(1000자) 길이 제한
+  - `POST /api/wait-times`: `wait_time`(0~600)·`waiting_people`(0~9999) 범위 검증, `crowd_level` enum 검증(`low/medium/high/critical`)
+- **데드 코드 정리 및 버그 수정**
+  - `lib/supabase`의 `createServerClient`로 API 라우트의 중복 anon 클라이언트 통일 (place-reports·wait-times·custom-places)
+  - wait-times 미사용 import 제거
+  - 커스텀 장소 거리 `0m` falsy 표시 버그 수정 (`distance != null`)
+  - 신고 모달 실패 시 에러 메시지 표시 (catch 추가)
+  - `.gitignore`에 `*.tsbuildinfo`·Office 임시 잠금 파일(`~$*`) 추가 및 추적 해제
+- **Vercel 환경변수·Supabase RLS 적용 확인** — `RESEND_API_KEY·RESEND_TO_EMAIL·NEXT_PUBLIC_ADMIN_EMAILS` 프로덕션 등록 완료, 전체 테이블 RLS 활성화 상태 검증 완료.
+
 ### 2026-06-08
 
 - **신규 장소 등록 기능 추가** — 카카오 API에 등록되지 않은 팝업스토어·임시 매장 등을 사용자가 직접 등록할 수 있도록 구현함.
@@ -506,7 +525,7 @@ flowchart TD
 |---|------|------|------|
 | 1 | 첫 로그인 후 재로그인 시 이전 세션이 남아 다른 계정으로 전환 불가 | Supabase 세션이 localStorage에 유지된 채 로그아웃이 완전히 처리되지 않는 것으로 추정 | 미해결 |
 | 2 | 신규 등록된 장소를 지도 마커에 표시 | 커스텀 장소 핀을 보라색 테두리로 일반 마커와 구분 | 완료 |
-| 3 | 커스텀 장소 수정 기능 | 등록자 본인이 장소 정보(장소명·카테고리·설명 등) 수정 가능 | 미완료 |
+| 3 | 커스텀 장소 수정 기능 | 수정 불가 정책으로 확정 — 일반 유저는 신고만, 삭제는 어드민 전용 | 보류(정책 확정) |
 | 4 | 커스텀 장소 대기정보 표시 | `wait_times` 테이블에서 커스텀 장소 ID 기준으로 조회해서 반영 | 완료 |
-| 5 | Supabase RLS 설정 | `custom_places`, `place_reports` 테이블 RLS 프로덕션 적용 | 미완료 |
-| 6 | Vercel 환경변수 설정 | `RESEND_API_KEY`, `RESEND_TO_EMAIL`, `NEXT_PUBLIC_ADMIN_EMAILS` 프로덕션 등록 | 미완료 |
+| 5 | Supabase RLS 설정 | 전체 테이블 RLS 활성화 확인, `custom_places_delete` 정책 제거(어드민 전용) | 완료 |
+| 6 | Vercel 환경변수 설정 | `RESEND_API_KEY`, `RESEND_TO_EMAIL`, `NEXT_PUBLIC_ADMIN_EMAILS` 프로덕션 등록 | 완료 |
