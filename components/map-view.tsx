@@ -87,6 +87,8 @@ interface MapViewProps {
   onCenterChange?: (lat: number, lng: number) => void
   onMapCenterChange?: (lat: number, lng: number) => void
   resetZoomSignal?: number
+  sheetHeight?: number
+  sheetDragging?: boolean
 }
 
 const crowdColorMap = {
@@ -114,9 +116,7 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;")
 }
 
-const centerGuideOffsetY = 200
-
-export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onCenterChange, onMapCenterChange, resetZoomSignal }: MapViewProps) {
+export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundClick, center, focusTargetAtGuide, onCenterChange, onMapCenterChange, resetZoomSignal, sheetHeight, sheetDragging }: MapViewProps) {
   const isDeveloperMode = process.env.NODE_ENV !== "production"
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<kakao.maps.Map | null>(null)
@@ -126,6 +126,9 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
   const [mapError, setMapError] = useState<string | null>(null)
   const [isCenterGuideActive, setIsCenterGuideActive] = useState(false)
   const centerGuideDragRef = useRef<{ x: number; y: number } | null>(null)
+  // 시트 높이에 따라 동적으로 계산되는 십자선 오프셋
+  const offsetYRef = useRef(200)
+  const [offsetY, setOffsetY] = useState(200)
 
   const getGuidedCenter = () => {
     const map = mapInstanceRef.current
@@ -134,7 +137,7 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
     if (!map || !mapElement) return null
 
     const rect = mapElement.getBoundingClientRect()
-    const guidePoint = new window.kakao.maps.Point(rect.width / 2, rect.height / 2 - centerGuideOffsetY)
+    const guidePoint = new window.kakao.maps.Point(rect.width / 2, rect.height / 2 - offsetYRef.current)
 
     return map.getProjection().coordsFromContainerPoint(guidePoint)
   }
@@ -373,11 +376,20 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
 
     const adjustedCenter = map
       .getProjection()
-      .coordsFromContainerPoint(new window.kakao.maps.Point(rect.width / 2, rect.height / 2 + centerGuideOffsetY))
+      .coordsFromContainerPoint(new window.kakao.maps.Point(rect.width / 2, rect.height / 2 + offsetYRef.current))
 
     map.setCenter(adjustedCenter)
     emitCenters()
   }, [focusTargetAtGuide, isLoaded])
+
+  // 시트 높이 변경 → 십자선 오프셋 재계산
+  // 드래그 중엔 offsetY(시각) 만 갱신하고, 드래그 끝날 때(sheetDragging=false) guided center 1회 발신
+  useEffect(() => {
+    const newOffset = Math.round(window.innerHeight * (sheetHeight ?? 45) / 200)
+    offsetYRef.current = newOffset
+    setOffsetY(newOffset)
+    if (isLoaded && mapInstanceRef.current && !sheetDragging) emitGuidedCenter()
+  }, [sheetHeight, sheetDragging, isLoaded])
 
   useEffect(() => {
     if (!mapInstanceRef.current || !resetZoomSignal) return
@@ -468,7 +480,7 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
           onPointerUp={handleCenterGuidePointerUp}
           onPointerCancel={handleCenterGuidePointerUp}
           className="absolute left-1/2 top-1/2 z-20 h-10 w-10 cursor-grab touch-none select-none transition-transform hover:scale-110 active:cursor-grabbing"
-          style={{ transform: `translate(-50%, calc(-50% - ${centerGuideOffsetY}px))` }}
+          style={{ transform: `translate(-50%, calc(-50% - ${offsetY}px))` }}
         >
           <span className="absolute left-1/2 top-1/2 h-px w-8 -translate-x-1/2 -translate-y-1/2 bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.95)]" />
           <span className="absolute left-1/2 top-1/2 h-8 w-px -translate-x-1/2 -translate-y-1/2 bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.95)]" />

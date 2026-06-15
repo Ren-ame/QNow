@@ -33,23 +33,8 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
   const [waitingPeople, setWaitingPeople] = useState(5)
   const [selectedCrowdLevel, setSelectedCrowdLevel] = useState("medium")
 
-  
-  /* Legacy code - 밑의 코드로 대체됨 (2024-06-20)
-   const handleSubmit = () => {
-    onSubmit?.({
-      waitTime,
-      waitingPeople,
-      crowdLevel: selectedCrowdLevel,
-    })
-    onClose()
-  } */
-
   const handleSubmit = () => {
-    onSubmit?.({
-      waitTime,
-      waitingPeople,
-      crowdLevel: selectedCrowdLevel,
-    })
+    onSubmit?.({ waitTime, waitingPeople, crowdLevel: selectedCrowdLevel })
     onClose()
   }
 
@@ -57,7 +42,8 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      {/* grid-rows-[auto_1fr_auto]: 헤더·버튼 고정, 콘텐츠만 스크롤 */}
+      <DialogContent className="sm:max-w-md max-h-[90dvh] grid-rows-[auto_1fr_auto]">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-foreground">
             대기 정보 입력
@@ -67,11 +53,12 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        {/* 스크롤 영역 — min-h-0 없으면 grid 아이템이 축소되지 않아 overflow 무시됨 */}
+        <div className="min-h-0 overflow-y-auto space-y-5 py-2">
           {/* 장소 정보 */}
-          <div className="bg-muted rounded-lg p-4">
+          <div className="bg-muted rounded-lg p-3">
             <p className="text-sm text-muted-foreground">{place.category}</p>
-            <p className="font-semibold text-lg text-foreground">{place.name}</p>
+            <p className="font-semibold text-base text-foreground">{place.name}</p>
             <p className="text-sm text-muted-foreground">{place.address}</p>
           </div>
 
@@ -139,7 +126,7 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
                       : "border-border hover:border-primary/50"
                   )}
                 >
-                  <div className={cn("w-3 h-3 rounded-full", level.color)} />
+                  <div className={cn("w-3 h-3 rounded-full flex-shrink-0", level.color)} />
                   <div className="text-left">
                     <p className="text-sm font-medium text-foreground">{level.label}</p>
                     <p className="text-xs text-muted-foreground">{level.description}</p>
@@ -150,7 +137,8 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
           </div>
         </div>
 
-        <div className="flex gap-3">
+        {/* 버튼 — 항상 하단 고정 */}
+        <div className="flex gap-3 pt-1">
           <Button variant="outline" onClick={onClose} className="flex-1">
             취소
           </Button>

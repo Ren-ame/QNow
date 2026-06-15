@@ -6,76 +6,85 @@ import { cn } from "@/lib/utils"
 interface BottomSheetProps {
   children: React.ReactNode
   className?: string
+  onStateChange?: (height: number, isDragging: boolean) => void
 }
 
-export function BottomSheet({ children, className }: BottomSheetProps) {
-  const [sheetHeight, setSheetHeight] = useState(45) // 퍼센트
+const SNAP_HIDDEN = 10
+const SNAP_MID = 45
+const SNAP_FULL = 85
+
+function nearestSnap(h: number): number {
+  if (h < 28) return SNAP_HIDDEN
+  if (h < 65) return SNAP_MID
+  return SNAP_FULL
+}
+
+export function BottomSheet({ children, className, onStateChange }: BottomSheetProps) {
+  const [sheetHeight, setSheetHeight] = useState(SNAP_MID)
   const [isDragging, setIsDragging] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const startY = useRef(0)
   const startHeight = useRef(0)
+  const liveHeight = useRef(SNAP_MID)
+
+  const applyHeight = (h: number, dragging: boolean) => {
+    liveHeight.current = h
+    setSheetHeight(h)
+    onStateChange?.(h, dragging)
+  }
 
   const handleDragStart = (clientY: number) => {
     setIsDragging(true)
     startY.current = clientY
-    startHeight.current = sheetHeight
+    startHeight.current = liveHeight.current
   }
 
   const handleDrag = (clientY: number) => {
-    if (!isDragging) return
-
     const deltaY = startY.current - clientY
     const deltaPercent = (deltaY / window.innerHeight) * 100
-    const newHeight = Math.min(85, Math.max(25, startHeight.current + deltaPercent))
-    setSheetHeight(newHeight)
+    const newHeight = Math.min(SNAP_FULL, Math.max(SNAP_HIDDEN, startHeight.current + deltaPercent))
+    applyHeight(newHeight, true)
   }
 
   const handleDragEnd = () => {
     setIsDragging(false)
-    // 스냅 포인트로 이동
-    if (sheetHeight > 65) {
-      setSheetHeight(85)
-    } else if (sheetHeight < 35) {
-      setSheetHeight(25)
-    } else {
-      setSheetHeight(45)
-    }
+    applyHeight(nearestSnap(liveHeight.current), false)
   }
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => handleDrag(e.clientY)
-    const handleMouseUp = () => handleDragEnd()
-    const handleTouchMove = (e: TouchEvent) => handleDrag(e.touches[0].clientY)
-    const handleTouchEnd = () => handleDragEnd()
+    if (!isDragging) return
 
-    if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove)
-      document.addEventListener("mouseup", handleMouseUp)
-      document.addEventListener("touchmove", handleTouchMove)
-      document.addEventListener("touchend", handleTouchEnd)
-    }
+    const onMouseMove = (e: MouseEvent) => handleDrag(e.clientY)
+    const onTouchMove = (e: TouchEvent) => handleDrag(e.touches[0].clientY)
+
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", handleDragEnd)
+    document.addEventListener("touchmove", onTouchMove, { passive: true })
+    document.addEventListener("touchend", handleDragEnd)
 
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove)
-      document.removeEventListener("mouseup", handleMouseUp)
-      document.removeEventListener("touchmove", handleTouchMove)
-      document.removeEventListener("touchend", handleTouchEnd)
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", handleDragEnd)
+      document.removeEventListener("touchmove", onTouchMove)
+      document.removeEventListener("touchend", handleDragEnd)
     }
   }, [isDragging])
+
+  const isHidden = sheetHeight <= SNAP_HIDDEN + 2
 
   return (
     <div
       ref={sheetRef}
       className={cn(
-        "absolute bottom-0 left-0 right-0 z-30 bg-card rounded-t-3xl shadow-2xl transition-all duration-300 ease-out",
-        isDragging && "transition-none",
+        "absolute bottom-0 left-0 right-0 z-30 bg-card rounded-t-3xl shadow-2xl",
+        !isDragging && "transition-all duration-300 ease-out",
         className
       )}
       style={{ height: `${sheetHeight}%` }}
     >
       {/* 드래그 핸들 */}
       <div
-        className="flex items-center justify-center py-3 cursor-grab active:cursor-grabbing"
+        className="flex items-center justify-center py-3 cursor-grab active:cursor-grabbing select-none"
         onMouseDown={(e) => handleDragStart(e.clientY)}
         onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
       >
@@ -83,7 +92,12 @@ export function BottomSheet({ children, className }: BottomSheetProps) {
       </div>
 
       {/* 컨텐츠 */}
-      <div className="h-[calc(100%-28px)] overflow-y-auto px-4 pb-4">
+      <div
+        className={cn(
+          "h-[calc(100%-28px)] overflow-y-auto px-4 pb-4",
+          isHidden && "overflow-hidden"
+        )}
+      >
         {children}
       </div>
     </div>

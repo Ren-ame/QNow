@@ -158,6 +158,8 @@ export default function WaitingNowPage() {
   const [activeSearchQuery, setActiveSearchQuery] = useState(DEFAULT_SEARCH_QUERY)
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
   const [resetZoomSignal, setResetZoomSignal] = useState(0)
+  const [sheetHeight, setSheetHeight] = useState(45)
+  const [sheetDragging, setSheetDragging] = useState(false)
   const [showRadiusPanel, setShowRadiusPanel] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [isNewPlaceModalOpen, setIsNewPlaceModalOpen] = useState(false)
@@ -381,10 +383,11 @@ export default function WaitingNowPage() {
   /* 2026-05-26: 성능 개선 - 클라이언트-서버 왕복 N→1 + 2단계 로딩 적용
    * Phase 1: skipEnrich=true로 Kakao 결과 즉시 표시 (대기 정보 없음)
    * Phase 2: /api/wait-times로 Supabase 1번 조회 후 대기 정보 비동기 병합 */
-  const fetchMultiplePlaces = async (loc: {lat: number, lng: number}, queries: string[]) => {
+  const fetchMultiplePlaces = async (loc: {lat: number, lng: number}, queries: string[], radiusOverride?: number) => {
     const searchId = ++searchIdRef.current
     const queriesParam = encodeURIComponent(queries.join(","))
-    const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&queries=${queriesParam}&skipEnrich=true&radius=${searchRadius}`)
+    const radius = radiusOverride ?? searchRadius
+    const res = await fetch(`/api/places?lat=${loc.lat}&lng=${loc.lng}&queries=${queriesParam}&skipEnrich=true&radius=${radius}`)
     const data: Place[] = await res.json()
 
     if (searchIdRef.current !== searchId) return data
@@ -394,14 +397,14 @@ export default function WaitingNowPage() {
     return data
   }
 
-  const fetchDiversePlaces = async (loc: {lat: number, lng: number}, query: string) => {
+  const fetchDiversePlaces = async (loc: {lat: number, lng: number}, query: string, radiusOverride?: number) => {
     const mergedQueries = Array.from(new Set([query, ...DIVERSE_CATEGORY_QUERIES]))
-    const data = await fetchMultiplePlaces(loc, mergedQueries)
+    const data = await fetchMultiplePlaces(loc, mergedQueries, radiusOverride)
     setSearchSuggestions(buildSearchSuggestions(data, query))
     return data
   }
 
-  const executeSearch = (loc: {lat: number, lng: number}, rawQuery: string) => {
+  const executeSearch = (loc: {lat: number, lng: number}, rawQuery: string, radiusOverride?: number) => {
     const normalizedQuery = rawQuery.trim() || DEFAULT_SEARCH_QUERY
     setActiveSearchQuery(normalizedQuery)
 
@@ -409,7 +412,7 @@ export default function WaitingNowPage() {
       return fetchDiversePlaces(loc, DEFAULT_SEARCH_QUERY)
     }
 
-    return fetchDiversePlaces(loc, normalizedQuery)
+    return fetchDiversePlaces(loc, normalizedQuery, radiusOverride)
   }
 
   const keepSelectedPlaceFirst = (list: Place[]) => {
@@ -497,7 +500,8 @@ export default function WaitingNowPage() {
 
     if (!location) return
     resetPinHighlight()
-    executeSearch(location, query)
+    // 텍스트 검색은 거리 필터에 영향받지 않도록 카카오 최대 반경(20km) 사용
+    executeSearch(location, query, query.trim() ? 20000 : undefined)
   }
 
   const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
@@ -515,7 +519,7 @@ export default function WaitingNowPage() {
 
     const matchedPlace = places.find((place) => place.id === suggestion.id)
     if (matchedPlace) {
-      setSelectedPlace(matchedPlace)
+      handleMarkerClick(matchedPlace)
     }
   }
 
@@ -929,7 +933,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       <Toaster position="top-center" richColors />
 
       {/* 검색바 */}
-      <div className="absolute top-0 left-0 right-0 z-20 p-4">
+      <div className="absolute top-0 left-0 right-0 z-50 p-4">
         <SearchBar
           onSearch={handleSearch}
           onDebouncedSearch={handleSearch}
@@ -1012,6 +1016,8 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
           onCenterChange={(lat, lng) => setMapCenter({ lat, lng })}
           onMapCenterChange={(lat, lng) => setActualMapCenter({ lat, lng })}
           resetZoomSignal={resetZoomSignal}
+          sheetHeight={sheetHeight}
+          sheetDragging={sheetDragging}
         />
       </div>
 
@@ -1019,7 +1025,8 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       <Button
         variant="secondary"
         size="icon"
-        className="absolute left-4 bottom-[48%] z-10 rounded-full shadow-lg bg-card hover:bg-muted"
+        className="absolute left-4 z-10 rounded-full shadow-lg bg-card hover:bg-muted"
+        style={{ bottom: `calc(${sheetHeight}% + 8px)`, transition: sheetDragging ? "none" : "bottom 300ms ease-out" }}
         onClick={() => {
           if (!userLocation) {
             toast.info("현재 위치를 아직 가져오지 못했습니다.")
@@ -1056,7 +1063,8 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       {mapCenter && (
       <Button
         onClick={handleReSearch}
-        className="absolute bottom-[48%] left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-card rounded-full shadow-md border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground"
+        className="absolute left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-card rounded-full shadow-md border border-border hover:bg-muted transition-colors text-sm font-medium text-foreground"
+        style={{ bottom: `calc(${sheetHeight}% + 8px)`, transition: sheetDragging ? "none" : "bottom 300ms ease-out" }}
       >
         이 지역 재검색
       </Button>
@@ -1127,7 +1135,8 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       {/* 신규 장소 등록 버튼 (위치 선택 모드일 때 숨김) */}
       {!isLocationPickerMode && (
       <Button
-        className="absolute right-4 bottom-[48%] z-10 rounded-full shadow-lg gap-2"
+        className="absolute right-4 z-10 rounded-full shadow-lg gap-2"
+        style={{ bottom: `calc(${sheetHeight}% + 8px)`, transition: sheetDragging ? "none" : "bottom 300ms ease-out" }}
         onClick={handleAddNewPlace}
         title="신규 장소 등록"
       >
@@ -1137,7 +1146,7 @@ const handleFilterChange = (filterType: keyof FilterState, value: string | null)
       )}
 
       {/* 하단 장소 목록 시트 */}
-      <BottomSheet>
+      <BottomSheet onStateChange={(h, dragging) => { setSheetHeight(h); setSheetDragging(dragging) }}>
         <div className="space-y-3">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-foreground">
