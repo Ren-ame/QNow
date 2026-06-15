@@ -395,6 +395,13 @@ flowchart TD
 - **지도 십자선 오프셋 동적화** — 시트 높이에 따라 십자선이 항상 가시 영역 중앙을 가리키도록 오프셋 자동 조정(`offsetY = innerHeight × sheetHeight / 200`). "이 지역 재검색"도 새 십자선 기준 좌표로 실행.
 - **십자선 `emitGuidedCenter` 최적화** — 드래그 중에는 시각적 오프셋(`offsetY`)만 갱신하고, 스냅 완료(`sheetDragging` false 전환) 시에만 guided center를 1회 발신해 렌더 부하 감소.
 - **대기 정보 입력 모달 반응형** — 작은 화면에서 모달이 잘리는 문제 해결. `max-h-[90dvh]` + `grid-rows-[auto_1fr_auto]` + `min-h-0 overflow-y-auto`를 적용해 콘텐츠 영역만 스크롤되고 버튼은 항상 하단에 고정.
+- **`page.tsx` God Component → 커스텀 훅 4개로 분리** — 1239줄 단일 컴포넌트를 `useFavorites` / `usePlaces` / `useCustomPlaces` / `useAdmin` 훅으로 분리해 관심사 격리. 기능 동작은 완전히 동일하게 유지. 리팩토링 과정에서 발견한 버그 4건 수정:
+  - `handlePlaceSelect`·`onFavoriteSelect`에 `setSelectedPlace` 누락 → 추가
+  - `handleSuggestionSelect` lat/lng 없는 분기에서 `executeSearch` 직접 호출로 `resetPinHighlight` 누락 → `handleSearch`로 복원
+  - `handleFilterChange` catch에 `toast.error` 누락 → `usePlaces.ts`에 복원
+  - `handleDeleteCustomPlace`의 `confirm()` 다이얼로그 누락 → `confirmAndDelete` wrapper를 `page.tsx`에 추가
+  - `handleNewPlaceSubmit` !session 시 `toast.success` 오발화 → `onSubmit`에 `if (!session) return` 가드 추가
+- **AdSense `data-nscript` 경고 제거** — `next/script`의 `<Script strategy="afterInteractive">`가 렌더된 태그에 `data-nscript` 속성을 자동 추가해 AdSense 검증기가 경고를 발생시키던 문제 해결. `<head>` 안의 일반 `<script async>`로 교체.
 
 ### 2026-06-09
 
