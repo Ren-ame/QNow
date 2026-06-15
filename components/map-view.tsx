@@ -168,10 +168,6 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY
 
-    console.log("[v0] API Key exists:", !!apiKey)
-    console.log("[v0] API Key length:", apiKey?.length)
-    console.log("[v0] Current domain:", window.location.hostname)
-
     if (!apiKey) {
       setMapError("카카오맵 API 키가 설정되지 않았습니다.")
       return
@@ -179,7 +175,6 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
 
     // 이미 로드되어 있는지 확인
     if (window.kakao && window.kakao.maps) {
-      console.log("[v0] Kakao SDK already loaded")
       window.kakao.maps.load(() => {
         setIsLoaded(true)
       })
@@ -189,7 +184,6 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
     // 기존 스크립트가 있는지 확인
     const existingScript = document.querySelector('script[src*="dapi.kakao.com"]')
     if (existingScript) {
-      console.log("[v0] Kakao script already exists in DOM, waiting...")
       const checkKakao = setInterval(() => {
         if (window.kakao && window.kakao.maps) {
           clearInterval(checkKakao)
@@ -206,22 +200,16 @@ export function MapView({ places, selectedPlace, onMarkerClick, onMapBackgroundC
     script.async = true
 
     script.onload = () => {
-      console.log("[v0] Kakao SDK script loaded successfully")
       if (window.kakao && window.kakao.maps) {
         window.kakao.maps.load(() => {
-          console.log("[v0] Kakao Maps initialized")
           setIsLoaded(true)
         })
       } else {
-        console.log("[v0] Kakao object not found after script load")
         setMapError("카카오맵 초기화에 실패했습니다.")
       }
     }
 
     script.onerror = () => {
-      console.log("[v0] Kakao SDK load error - Check API key and domain registration")
-      console.log("[v0] Make sure this domain is registered in Kakao Developers Console:")
-      console.log("[v0] Domain:", window.location.origin)
       setMapError(`카카오맵 SDK를 불러오는데 실패했습니다.\n\n도메인 등록을 확인해주세요:\n${window.location.origin}`)
     }
 

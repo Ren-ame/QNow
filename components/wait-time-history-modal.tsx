@@ -93,7 +93,7 @@ export function WaitTimeHistoryModal({ place, isOpen, onClose }: WaitTimeHistory
 
   const totalSamples = visibleHistory.reduce((sum, h) => sum + h.count, 0)
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: HistoryEntry }[] }) => {
     if (!active || !payload?.length) return null
     const d = payload[0].payload as HistoryEntry
     return (

@@ -11,6 +11,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { iqrMean, mode } from "@/lib/stats"
 import { createServerClient, createServiceClient } from "@/lib/supabase"
+import { haversineMeters } from "@/lib/utils"
+import type { Tables } from "@/lib/database.types"
+
+type WaitTimeRow = Tables<"wait_times">
 
 const supabase = createServerClient()
 
@@ -36,40 +40,34 @@ export async function GET(req: NextRequest) {
   if (!allRecords || allRecords.length === 0) return NextResponse.json([])
 
   // place_id별 그룹핑 (최신순 정렬 유지, 최근 10건만 사용)
-  const grouped = new Map<string, any[]>()
+  const grouped = new Map<string, WaitTimeRow[]>()
   for (const r of allRecords) {
+    if (!r.place_id) continue
     const arr = grouped.get(r.place_id) ?? []
     if (arr.length < 10) arr.push(r)
     grouped.set(r.place_id, arr)
   }
 
-  const result: any[] = []
+  const result: {
+    place_id: string
+    wait_time: number
+    waiting_people: number
+    crowd_level: string
+    created_at: string
+    sample_count: number
+  }[] = []
   for (const [placeId, records] of grouped) {
     result.push({
       place_id: placeId,
-      wait_time: iqrMean(records.map((r) => r.wait_time)),
-      waiting_people: iqrMean(records.map((r) => r.waiting_people)),
-      crowd_level: mode(records.map((r) => r.crowd_level)),
-      created_at: records[0].created_at, // 가장 최근 등록 시각
+      wait_time: iqrMean(records.map((r) => r.wait_time ?? 0)),
+      waiting_people: iqrMean(records.map((r) => r.waiting_people ?? 0)),
+      crowd_level: mode(records.map((r) => r.crowd_level ?? "low")),
+      created_at: records[0].created_at,
       sample_count: records.length,
     })
   }
 
   return NextResponse.json(result)
-}
-
-/* 2026-05-26: POST 핸들러 추가
- * 기존: handleWaitTimeSubmit이 React 상태만 업데이트 → 새로고침 시 데이터 소실
- * 변경: Supabase wait_times 테이블에 저장하여 영구 보존 */
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371000
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLng = toRad(lng2 - lng1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 const ALLOWED_CROWD_LEVELS = ["low", "medium", "high", "critical"]

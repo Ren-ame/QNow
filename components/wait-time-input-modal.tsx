@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Clock, Users, AlertCircle } from "lucide-react"
 import {
   Dialog,
@@ -32,6 +32,14 @@ export function WaitTimeInputModal({ place, isOpen, onClose, onSubmit }: WaitTim
   const [waitTime, setWaitTime] = useState(15)
   const [waitingPeople, setWaitingPeople] = useState(5)
   const [selectedCrowdLevel, setSelectedCrowdLevel] = useState("medium")
+
+  useEffect(() => {
+    if (isOpen) {
+      setWaitTime(15)
+      setWaitingPeople(5)
+      setSelectedCrowdLevel("medium")
+    }
+  }, [isOpen, place?.id])
 
   const handleSubmit = () => {
     onSubmit?.({ waitTime, waitingPeople, crowdLevel: selectedCrowdLevel })

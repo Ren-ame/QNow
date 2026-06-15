@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
   const monthPoints = (transactions ?? [])
-    .filter((t) => t.type === "earn" && new Date(t.created_at) >= startOfMonth)
+    .filter((t) => t.type === "earn" && t.created_at != null && new Date(t.created_at) >= startOfMonth)
     .reduce((sum, t) => sum + t.amount, 0)
 
   // 총 제보 수

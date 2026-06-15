@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient, createServiceClient } from "@/lib/supabase"
 import { isAdminEmail } from "@/lib/admin"
+import { haversineMeters } from "@/lib/utils"
 
 // 조회용 anon 클라이언트 (RLS SELECT 정책 적용)
 const supabase = createServerClient()
@@ -32,17 +33,8 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // 실제 직선거리 계산 후 필터링
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const haversine = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371000
-    const dLat = toRad(lat2 - lat1)
-    const dLng = toRad(lng2 - lng1)
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }
-
   const filtered = (data ?? [])
-    .map((p) => ({ ...p, distance: Math.round(haversine(lat, lng, p.lat, p.lng)) }))
+    .map((p) => ({ ...p, distance: Math.round(haversineMeters(lat, lng, p.lat, p.lng)) }))
     .filter((p) => p.distance <= radius)
     .sort((a, b) => a.distance - b.distance)
 

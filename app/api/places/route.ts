@@ -1,21 +1,24 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createServerClient } from "@/lib/supabase"
+import { formatLastUpdated } from "@/lib/utils"
 
-// 서버 전용 client: persistSession/autoRefreshToken false로 브라우저 auth 충돌 방지
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }
-)
+const supabase = createServerClient()
 
 const KAKAO_LOCAL_BASE_URL = "https://dapi.kakao.com/v2/local"
 
-const mapToPlace = (doc: any) => ({
+interface KakaoPlaceDoc {
+  id: string
+  place_name: string
+  category_name: string
+  category_group_code: string
+  road_address_name: string
+  address_name: string
+  distance: string
+  x: string
+  y: string
+}
+
+const mapToPlace = (doc: KakaoPlaceDoc) => ({
   id: doc.id,
   name: doc.place_name,
   category: doc.category_name.split(">").pop()?.trim() || doc.category_name,
@@ -30,7 +33,7 @@ const mapToPlace = (doc: any) => ({
   isFavorite: false,
 })
 
-const uniqueById = (docs: any[]) => {
+const uniqueById = (docs: KakaoPlaceDoc[]) => {
   const seen = new Set<string>()
   return docs.filter((doc) => {
     if (seen.has(doc.id)) return false
@@ -41,14 +44,14 @@ const uniqueById = (docs: any[]) => {
 
 const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, "")
 
-const isSubwayDoc = (doc: any) => {
+const isSubwayDoc = (doc: KakaoPlaceDoc) => {
   const categoryGroup = String(doc.category_group_code ?? "")
   const categoryName = String(doc.category_name ?? "")
   const placeName = String(doc.place_name ?? "")
   return categoryGroup === "SW8" || /지하철|전철/.test(categoryName) || /역$/.test(placeName)
 }
 
-const rankDocuments = (docs: any[], query: string) => {
+const rankDocuments = (docs: KakaoPlaceDoc[], query: string) => {
   const normalizedQuery = normalize(query)
   const isStationIntent = /역|지하철|subway/i.test(query)
 
@@ -58,7 +61,7 @@ const rankDocuments = (docs: any[], query: string) => {
     const aCategory = normalize(String(a.category_name ?? ""))
     const bCategory = normalize(String(b.category_name ?? ""))
 
-    const score = (name: string, category: string, doc: any) => {
+    const score = (name: string, category: string, doc: KakaoPlaceDoc) => {
       let total = 0
       const subway = isSubwayDoc(doc)
 
@@ -91,24 +94,16 @@ const rankDocuments = (docs: any[], query: string) => {
   })
 }
 
-/* 2026-05-26: lastUpdated 포맷 함수 분리 - enrichWithWaitTimes 재사용을 위해 */
-const formatLastUpdated = (createdAt: string) => {
-  const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000 / 60)
-  if (diff < 1) return "방금 전"
-  if (diff < 60) return `${diff}분 전`
-  const hours = Math.floor(diff / 60)
-  if (hours < 24) return `${hours}시간 전`
-  return `${Math.floor(hours / 24)}일 전`
-}
-
 /* 2026-05-26: Supabase 대기 정보 병합 함수 분리 - 단일 호출로 재사용 */
 const enrichWithWaitTimes = async (places: ReturnType<typeof mapToPlace>[]) => {
   if (places.length === 0) return places
   const placeIds = places.map((p) => p.id)
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
   const { data: waitTimes } = await supabase
     .from("wait_times")
     .select("*")
     .in("place_id", placeIds)
+    .gte("created_at", twoHoursAgo)
     .order("created_at", { ascending: false })
 
   return places.map((place) => {
@@ -134,7 +129,7 @@ export async function GET(req: NextRequest) {
     Authorization: `KakaoAK ${process.env.KAKAO_REST_API_KEY}`,
   }
 
-  const requestWithAuth = async (url: string) => {
+  const requestWithAuth = async (url: string): Promise<{ documents: KakaoPlaceDoc[] }> => {
     const res = await fetch(url, { headers: authHeader })
     return res.json()
   }
@@ -160,12 +155,12 @@ export async function GET(req: NextRequest) {
     const allDocsArrays = await Promise.all(
       queries.map((q) => {
         const url = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(q)}&x=${lng}&y=${lat}&radius=${radius}&size=${keywordSize}`
-        return requestWithAuth(url).then((data: any) => data.documents ?? [])
+        return requestWithAuth(url).then((data) => data.documents ?? [])
       })
     )
 
     // 다중 카테고리 검색은 관련도 랭킹 대신 거리순 정렬
-    const merged = uniqueById(allDocsArrays.flat()).sort((a: any, b: any) =>
+    const merged = uniqueById(allDocsArrays.flat()).sort((a, b) =>
       Number(a.distance || Number.MAX_SAFE_INTEGER) - Number(b.distance || Number.MAX_SAFE_INTEGER)
     )
     const places = merged.map(mapToPlace)
@@ -178,7 +173,7 @@ export async function GET(req: NextRequest) {
   if (categoryGroupCode && lat && lng) {
     const categoryUrl = `${KAKAO_LOCAL_BASE_URL}/search/category.json?category_group_code=${encodeURIComponent(categoryGroupCode)}&x=${lng}&y=${lat}&radius=${radius}&size=${categorySize}`
     const categoryData = await requestWithAuth(categoryUrl)
-    const categoryDocs: any[] = categoryData.documents ?? []
+    const categoryDocs: KakaoPlaceDoc[] = categoryData.documents ?? []
 
     const rankedCategoryDocs = rankDocuments(uniqueById(categoryDocs), query)
     const places = rankedCategoryDocs.map(mapToPlace)
@@ -192,7 +187,7 @@ export async function GET(req: NextRequest) {
   const nearbyKeywordUrl = `${KAKAO_LOCAL_BASE_URL}/search/keyword.json?query=${encodeURIComponent(query)}&x=${lng}&y=${lat}&radius=${radius}&size=${keywordSize}`
   const nearbyKeywordData = await requestWithAuth(nearbyKeywordUrl)
 
-  let docs: any[] = nearbyKeywordData.documents ?? []
+  let docs: KakaoPlaceDoc[] = nearbyKeywordData.documents ?? []
 
   // 2) 결과가 없으면 위치 제약 없이 전체 키워드 검색으로 보강
   if (docs.length === 0) {
@@ -205,7 +200,7 @@ export async function GET(req: NextRequest) {
   if (isSubwayQuery && lat && lng) {
     const subwayCategoryUrl = `${KAKAO_LOCAL_BASE_URL}/search/category.json?category_group_code=SW8&x=${lng}&y=${lat}&radius=20000&size=15`
     const subwayCategoryData = await requestWithAuth(subwayCategoryUrl)
-    const subwayDocs = (subwayCategoryData.documents ?? []).filter((doc: any) =>
+    const subwayDocs = (subwayCategoryData.documents ?? []).filter((doc: KakaoPlaceDoc) =>
       doc.place_name?.toLowerCase().includes(query.toLowerCase().replace(/\s+/g, "")) ||
       query.length <= 2
     )
